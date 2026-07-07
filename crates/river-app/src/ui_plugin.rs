@@ -60,17 +60,45 @@ impl UiPluginManager {
     }
 
     pub fn register_plugin(&mut self, plugin: Arc<dyn UiRenderer>) {
+        let is_new_default = plugin.id().to_lowercase().contains("default") || plugin.name().to_lowercase().contains("default");
+        let is_android_style = plugin.id() == "default-android-style";
+
         if let Some(pos) = self.plugins.iter().position(|p| p.id() == plugin.id()) {
-            self.plugins[pos] = plugin;
+            self.plugins[pos] = plugin.clone();
         } else {
-            self.plugins.push(plugin);
+            self.plugins.push(plugin.clone());
         }
-        if self.active_plugin_id.is_empty() || !self.plugins.iter().any(|p| p.id() == self.active_plugin_id) {
+
+        let is_currently_empty = self.active_plugin_id == "empty" || self.active_plugin_id.is_empty() || !self.plugins.iter().any(|p| p.id() == self.active_plugin_id);
+        let dev_lower = self.device_id.to_lowercase();
+        let is_mobile_device = cfg!(target_os = "android") || dev_lower.contains("android") || dev_lower.contains("phone") || dev_lower.contains("aarch64") || dev_lower.contains("arm64");
+
+        // On Android / ARM64, bake in default-android-style (Material UI) as the active theme!
+        if is_mobile_device && is_android_style {
+            self.active_plugin_id = "default-android-style".to_string();
+        } else if is_currently_empty && is_new_default {
+            self.active_plugin_id = plugin.id().to_string();
+        } else if is_currently_empty {
             if let Some(default_p) = self.plugins.iter().find(|p| p.id().to_lowercase().contains("default") || p.name().to_lowercase().contains("default")) {
                 self.active_plugin_id = default_p.id().to_string();
             } else if let Some(first_p) = self.plugins.first() {
                 self.active_plugin_id = first_p.id().to_string();
             }
+        }
+    }
+
+    /// Directly load a KDL theme string from memory without requiring filesystem access!
+    /// Ensures that on Android or restricted environments, UI themes are 100% available!
+    pub fn load_embedded_theme(&mut self, raw_kdl: &str) {
+        if let Ok(doc) = load_kdl_plugin(raw_kdl) {
+            let config = UiThemeConfig::from_kdl(&doc);
+            let mode = if config.mode == "core" || config.mode == "compiled" {
+                UiExecutionMode::CoreCompiled
+            } else {
+                UiExecutionMode::HotplugDynamic
+            };
+            let plugin = dispatch_ui_job(&config.id, &config.name, doc, mode);
+            self.register_plugin(plugin);
         }
     }
 

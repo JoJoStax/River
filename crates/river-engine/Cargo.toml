@@ -10,6 +10,10 @@ river-ports = { workspace = true }
 river-services = { workspace = true }
 river-storage-sqlite = { workspace = true }
 river-network-reqwest = { workspace = true }
+river-plugin-stremio = { workspace = true }
+river-plugin-mangadex = { workspace = true }
+river-plugin-jamendo = { workspace = true }
+river-plugin-rss = { workspace = true }
 river-presentation = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

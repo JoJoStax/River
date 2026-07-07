@@ -31,22 +31,23 @@ impl RiverGuiApp {
         // Ensure ui_plugins/ directory and default seed files exist on clean installs!
         let _ = std::fs::create_dir_all("ui_plugins");
         let default_themes = [
-            ("ui_plugins/empty.kdl", include_str!("../../../ui_plugins/empty.kdl")),
             ("ui_plugins/default_android_style.kdl", include_str!("../../../ui_plugins/default_android_style.kdl")),
+            ("ui_plugins/one_ui_suite.kdl", include_str!("../../../ui_plugins/one_ui_suite.kdl")),
             ("ui_plugins/cyberdeck_pro_suite.kdl", include_str!("../../../ui_plugins/cyberdeck_pro_suite.kdl")),
             ("ui_plugins/console_plaza_suite.kdl", include_str!("../../../ui_plugins/console_plaza_suite.kdl")),
             ("ui_plugins/studio_hifi_suite.kdl", include_str!("../../../ui_plugins/studio_hifi_suite.kdl")),
-            ("ui_plugins/one_ui_suite.kdl", include_str!("../../../ui_plugins/one_ui_suite.kdl")),
             ("ui_plugins/windows_xp_suite.kdl", include_str!("../../../ui_plugins/windows_xp_suite.kdl")),
             ("ui_plugins/iphone_ios_suite.kdl", include_str!("../../../ui_plugins/iphone_ios_suite.kdl")),
+            ("ui_plugins/empty.kdl", include_str!("../../../ui_plugins/empty.kdl")),
         ];
         for (path, content) in default_themes {
-            if !std::path::Path::new(path).exists() {
-                let _ = std::fs::write(path, content);
-            }
+            // ALWAYS load embedded theme directly from memory first so UI is 100% available even if disk I/O fails!
+            ui_manager.load_embedded_theme(content);
+            // Update disk file so theme improvements (like gradient backgrounds) propagate on existing installs!
+            let _ = std::fs::write(path, content);
         }
 
-        // Automatically scan ui_plugins/ and load all KDL themes!
+        // Automatically scan ui_plugins/ to pick up any user customizations or additional themes!
         ui_manager.scan_plugins_dir("ui_plugins");
 
         Self {

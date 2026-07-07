@@ -2802,6 +2802,10 @@ version = "0.1.0"
 dependencies = [
  "river-core",
  "river-network-reqwest",
+ "river-plugin-jamendo",
+ "river-plugin-mangadex",
+ "river-plugin-rss",
+ "river-plugin-stremio",
  "river-ports",
  "river-presentation",
  "river-services",
@@ -2819,6 +2823,58 @@ dependencies = [
  "reqwest",
  "river-core",
  "river-ports",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
+name = "river-plugin-jamendo"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "river-core",
+ "river-ports",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
+name = "river-plugin-mangadex"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "river-core",
+ "river-ports",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
+name = "river-plugin-rss"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "river-core",
+ "river-ports",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
+name = "river-plugin-stremio"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "river-core",
+ "river-ports",
+ "serde",
  "serde_json",
  "thiserror 1.0.69",
  "tracing",

@@ -6,6 +6,10 @@ members = [
     "crates/river-services",
     "crates/river-adapters/storage-sqlite",
     "crates/river-adapters/network-reqwest",
+    "crates/river-adapters/plugin-stremio",
+    "crates/river-adapters/plugin-mangadex",
+    "crates/river-adapters/plugin-jamendo",
+    "crates/river-adapters/plugin-rss",
     "crates/river-presentation",
     "crates/river-engine",
     "crates/river-cli",
@@ -37,6 +41,10 @@ river-ports = { path = "crates/river-ports" }
 river-services = { path = "crates/river-services" }
 river-storage-sqlite = { path = "crates/river-adapters/storage-sqlite" }
 river-network-reqwest = { path = "crates/river-adapters/network-reqwest" }
+river-plugin-stremio = { path = "crates/river-adapters/plugin-stremio" }
+river-plugin-mangadex = { path = "crates/river-adapters/plugin-mangadex" }
+river-plugin-jamendo = { path = "crates/river-adapters/plugin-jamendo" }
+river-plugin-rss = { path = "crates/river-adapters/plugin-rss" }
 river-presentation = { path = "crates/river-presentation" }
 river-engine = { path = "crates/river-engine" }
 river-app = { path = "crates/river-app" }

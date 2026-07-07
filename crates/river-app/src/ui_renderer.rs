@@ -460,11 +460,23 @@ fn render_catalog_content(
         }
         CatalogState::Loaded(catalogs) => {
             if catalogs.is_empty() {
-                ui.label(
-                    egui::RichText::new("No catalogs currently loaded. Select a media category above!")
-                        .size(config.body_size * scale)
-                        .family(font_fam.clone()),
-                );
+                ui.vertical_centered(|ui| {
+                    ui.add_space(40.0 * scale);
+                    ui.label(
+                        egui::RichText::new("🌊 No Active Catalogs Found")
+                            .size(20.0 * scale)
+                            .family(font_fam.clone())
+                            .color(config.accent_color)
+                            .strong(),
+                    );
+                    ui.add_space(10.0 * scale);
+                    ui.label(
+                        egui::RichText::new("Please select a media category above or check plugin settings.")
+                            .size(config.body_size * scale)
+                            .family(font_fam.clone())
+                            .color(config.text_color),
+                    );
+                });
             } else {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     for cat in catalogs {

@@ -15,11 +15,14 @@ impl RiverEngine {
         let storage = Arc::new(SqliteStorage::new_in_memory()?);
         storage.init_schema().await?;
 
-        let _network_client = Arc::new(ReqwestClient::new());
+        let network_client = Arc::new(ReqwestClient::new());
         let plugin_service = Arc::new(PluginService::new(storage.clone()));
 
-        // Media scrapers cleaned for UI framework focus!
-        // (See docs/DEVELOPER_GUIDE.md for adding custom media providers)
+        // Register default built-in media providers (Stremio for Video; rest left empty per user philosophy!)
+        plugin_service.register_provider(Arc::new(river_plugin_stremio::StremioPlugin::new(network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_jamendo::JamendoPlugin::new(network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_mangadex::MangaDexPlugin::new(network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_rss::RssPodcastPlugin::new(network_client.clone()))).await;
 
         let catalog_service = Arc::new(CatalogService::new(plugin_service.clone()));
         let library_service = Arc::new(LibraryService::new(storage.clone()));
@@ -37,10 +40,14 @@ impl RiverEngine {
         let storage = Arc::new(SqliteStorage::new_from_path(path)?);
         storage.init_schema().await?;
 
-        let _network_client = Arc::new(ReqwestClient::new());
+        let network_client = Arc::new(ReqwestClient::new());
         let plugin_service = Arc::new(PluginService::new(storage.clone()));
 
-        // Media scrapers cleaned for UI framework focus!
+        // Register default built-in media providers (Stremio for Video; rest left empty per user philosophy!)
+        plugin_service.register_provider(Arc::new(river_plugin_stremio::StremioPlugin::new(network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_jamendo::JamendoPlugin::new(network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_mangadex::MangaDexPlugin::new(network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_rss::RssPodcastPlugin::new(network_client.clone()))).await;
 
         let catalog_service = Arc::new(CatalogService::new(plugin_service.clone()));
         let library_service = Arc::new(LibraryService::new(storage.clone()));
