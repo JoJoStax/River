@@ -68,8 +68,8 @@ impl eframe::App for RiverGuiApp {
         // Automatically check folder for new or modified KDL themes (hot-reloading / auto-detection!)
         self.ui_manager.scan_plugins_dir("ui_plugins");
 
-        // Fetch current immutable state from our MVI store synchronously
-        let state = self.rt.block_on(self.engine.store.get_state());
+        // Fetch current immutable state from our MVI store synchronously without blocking Tokio runtime!
+        let state = self.engine.store.get_state_sync();
 
         // Delegate 100% of window architecture and layout rendering to active KDL theme!
         if let Some(active_plugin) = self.ui_manager.active_plugin() {

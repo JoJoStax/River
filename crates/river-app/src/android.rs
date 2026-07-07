@@ -11,6 +11,9 @@ use winit::platform::android::EventLoopBuilderExtAndroid;
 #[no_mangle]
 pub extern "C" fn android_main(app: AndroidApp) {
     std::env::set_var("RUST_BACKTRACE", "1");
+    if let Some(path) = app.internal_data_path() {
+        let _ = std::env::set_current_dir(&path);
+    }
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     let engine = rt.block_on(async {
         river_engine::RiverEngine::new_in_memory()
