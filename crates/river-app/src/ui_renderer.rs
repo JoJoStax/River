@@ -64,6 +64,14 @@ pub fn render_ast_panels(
     scale: f32,
     ui_manager: &mut UiPluginManager,
 ) {
+    let dev_lower = ui_manager.device_id.to_lowercase();
+    let is_mobile = cfg!(target_os = "android") || dev_lower.contains("android") || dev_lower.contains("phone") || dev_lower.contains("aarch64") || dev_lower.contains("arm64");
+    let has_top_panel = nodes.iter().any(|n| matches!(n, UiNode::Panel { kind, .. } if kind == "top-panel"));
+    let has_bottom_panel = nodes.iter().any(|n| matches!(n, UiNode::Panel { kind, .. } if kind == "bottom-panel"));
+
+    let top_safe_margin = if is_mobile { 38.0 * scale } else { 8.0 * scale };
+    let bottom_safe_margin = if is_mobile { 24.0 * scale } else { 8.0 * scale };
+
     for node in nodes {
         match node {
             UiNode::Panel {
@@ -77,8 +85,14 @@ pub fn render_ast_panels(
                 match kind.as_str() {
                     "top-panel" => {
                         let scaled_height = if *size > 0.0 { *size * scale } else { 0.0 };
+                        let margin = egui::Margin {
+                            left: 12.0 * scale,
+                            right: 12.0 * scale,
+                            top: top_safe_margin,
+                            bottom: 8.0 * scale,
+                        };
                         let mut panel = egui::TopBottomPanel::top(egui::Id::new(panel_id))
-                            .frame(egui::Frame::none().fill(*fill).inner_margin(8.0 * scale));
+                            .frame(egui::Frame::none().fill(*fill).inner_margin(margin));
                         if scaled_height > 0.0 {
                             panel = panel.min_height(scaled_height);
                         }
@@ -90,8 +104,14 @@ pub fn render_ast_panels(
                     }
                     "bottom-panel" => {
                         let scaled_height = if *size > 0.0 { *size * scale } else { 0.0 };
+                        let margin = egui::Margin {
+                            left: 12.0 * scale,
+                            right: 12.0 * scale,
+                            top: 8.0 * scale,
+                            bottom: bottom_safe_margin,
+                        };
                         let mut panel = egui::TopBottomPanel::bottom(egui::Id::new(panel_id))
-                            .frame(egui::Frame::none().fill(*fill).inner_margin(8.0 * scale));
+                            .frame(egui::Frame::none().fill(*fill).inner_margin(margin));
                         if scaled_height > 0.0 {
                             panel = panel.min_height(scaled_height);
                         }
@@ -128,8 +148,16 @@ pub fn render_ast_panels(
                         });
                     }
                     "central-panel" | _ => {
+                        let c_top = if !has_top_panel && is_mobile { 38.0 * scale } else { 12.0 * scale };
+                        let c_bottom = if !has_bottom_panel && is_mobile { 24.0 * scale } else { 12.0 * scale };
+                        let margin = egui::Margin {
+                            left: 12.0 * scale,
+                            right: 12.0 * scale,
+                            top: c_top,
+                            bottom: c_bottom,
+                        };
                         egui::CentralPanel::default()
-                            .frame(egui::Frame::none().fill(*fill).inner_margin(12.0 * scale))
+                            .frame(egui::Frame::none().fill(*fill).inner_margin(margin))
                             .show(ctx, |ui| {
                                 render_ui_nodes(
                                     ui, children, state, store, rt, config, time, scale, ui_manager,

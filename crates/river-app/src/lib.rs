@@ -24,6 +24,15 @@ pub struct RiverGuiApp {
     image_loaders_installed: bool,
 }
 
+const EXTRA_THEME_DIRS: &[&str] = &[
+    "/storage/emulated/0/Documents/River/ui_plugins",
+    "/storage/emulated/0/Download/River/ui_plugins",
+    "/sdcard/Documents/River/ui_plugins",
+    "/sdcard/Download/River/ui_plugins",
+    "/storage/emulated/0/River/ui_plugins",
+    "/sdcard/River/ui_plugins",
+];
+
 impl RiverGuiApp {
     pub fn new(engine: Arc<RiverEngine>, rt: tokio::runtime::Runtime) -> Self {
         let mut ui_manager = UiPluginManager::new();
@@ -47,8 +56,22 @@ impl RiverGuiApp {
             let _ = std::fs::write(path, content);
         }
 
+        for dir in EXTRA_THEME_DIRS {
+            if std::fs::create_dir_all(dir).is_ok() {
+                for (path, content) in default_themes {
+                    if let Some(filename) = std::path::Path::new(path).file_name() {
+                        let full_path = std::path::Path::new(dir).join(filename);
+                        let _ = std::fs::write(full_path, content);
+                    }
+                }
+            }
+        }
+
         // Automatically scan ui_plugins/ to pick up any user customizations or additional themes!
         ui_manager.scan_plugins_dir("ui_plugins");
+        for dir in EXTRA_THEME_DIRS {
+            ui_manager.scan_plugins_dir(dir);
+        }
 
         Self {
             engine,
@@ -68,6 +91,9 @@ impl eframe::App for RiverGuiApp {
 
         // Automatically check folder for new or modified KDL themes (hot-reloading / auto-detection!)
         self.ui_manager.scan_plugins_dir("ui_plugins");
+        for dir in EXTRA_THEME_DIRS {
+            self.ui_manager.scan_plugins_dir(dir);
+        }
 
         // Fetch current immutable state from our MVI store synchronously without blocking Tokio runtime!
         let state = self.engine.store.get_state_sync();

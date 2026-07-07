@@ -15,14 +15,15 @@ impl RiverEngine {
         let storage = Arc::new(SqliteStorage::new_in_memory()?);
         storage.init_schema().await?;
 
-        let network_client = Arc::new(ReqwestClient::new());
+        let _network_client = Arc::new(ReqwestClient::new());
         let plugin_service = Arc::new(PluginService::new(storage.clone()));
 
-        // Register default built-in media providers (Stremio for Video; rest left empty per user philosophy!)
-        plugin_service.register_provider(Arc::new(river_plugin_stremio::StremioPlugin::new(network_client.clone()))).await;
-        // plugin_service.register_provider(Arc::new(river_plugin_jamendo::JamendoPlugin::new(network_client.clone()))).await;
-        // plugin_service.register_provider(Arc::new(river_plugin_mangadex::MangaDexPlugin::new(network_client.clone()))).await;
-        // plugin_service.register_provider(Arc::new(river_plugin_rss::RssPodcastPlugin::new(network_client.clone()))).await;
+        // All hardcoded media adapters are commented out per user philosophy!
+        // Future metadata providers will be dynamically loaded via KDL / external plugins.
+        // plugin_service.register_provider(Arc::new(river_plugin_stremio::StremioPlugin::new(_network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_jamendo::JamendoPlugin::new(_network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_mangadex::MangaDexPlugin::new(_network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_rss::RssPodcastPlugin::new(_network_client.clone()))).await;
 
         let catalog_service = Arc::new(CatalogService::new(plugin_service.clone()));
         let library_service = Arc::new(LibraryService::new(storage.clone()));
@@ -40,14 +41,15 @@ impl RiverEngine {
         let storage = Arc::new(SqliteStorage::new_from_path(path)?);
         storage.init_schema().await?;
 
-        let network_client = Arc::new(ReqwestClient::new());
+        let _network_client = Arc::new(ReqwestClient::new());
         let plugin_service = Arc::new(PluginService::new(storage.clone()));
 
-        // Register default built-in media providers (Stremio for Video; rest left empty per user philosophy!)
-        plugin_service.register_provider(Arc::new(river_plugin_stremio::StremioPlugin::new(network_client.clone()))).await;
-        // plugin_service.register_provider(Arc::new(river_plugin_jamendo::JamendoPlugin::new(network_client.clone()))).await;
-        // plugin_service.register_provider(Arc::new(river_plugin_mangadex::MangaDexPlugin::new(network_client.clone()))).await;
-        // plugin_service.register_provider(Arc::new(river_plugin_rss::RssPodcastPlugin::new(network_client.clone()))).await;
+        // All hardcoded media adapters are commented out per user philosophy!
+        // Future metadata providers will be dynamically loaded via KDL / external plugins.
+        // plugin_service.register_provider(Arc::new(river_plugin_stremio::StremioPlugin::new(_network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_jamendo::JamendoPlugin::new(_network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_mangadex::MangaDexPlugin::new(_network_client.clone()))).await;
+        // plugin_service.register_provider(Arc::new(river_plugin_rss::RssPodcastPlugin::new(_network_client.clone()))).await;
 
         let catalog_service = Arc::new(CatalogService::new(plugin_service.clone()));
         let library_service = Arc::new(LibraryService::new(storage.clone()));
