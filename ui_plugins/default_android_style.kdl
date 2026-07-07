@@ -1,0 +1,93 @@
+plugin id="default-android-style" name="Default Android Style" mode="hotplug" {
+    style {
+        palette accent="#a8c7fa" secondary="#ccc2dc" text="#e6e1e5" border="#49454f" background="#1c1b1f"
+        typography family="proportional" header-size=24.0 body-size=14.0
+        spacing item-x=12.0 item-y=12.0 padding=16.0
+        background-type "solid"
+        fill "#1c1b1f"
+        secondary "#2b2930"
+    }
+    layout target="desktop" {
+        top-panel id="m3-app-bar" height=60.0 fill="#2b2930ff" {
+            column spacing=6.0 padding=10.0 {
+                row align="center" spacing=16.0 {
+                    button label="🤖" color="accent" size=24.0 rounding=24.0
+                    button label="🔍" color="text" size=20.0 rounding=24.0
+                    button label="⚙️" color="text" size=20.0 rounding=24.0
+                    spacer
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="m3-nav-bar" height=72.0 fill="#2b2930ff" {
+            row align="center" spacing=20.0 {
+                spacer
+                menu-bar id="category-nav" style="icons" size=26.0
+                spacer
+            }
+        }
+        central-panel id="m3-content" fill="#1c1b1fff" {
+            column spacing=16.0 padding=20.0 {
+                catalog-view style="floating_cards" columns=3 rounding=28.0 border-width=1.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+    layout target="mobile" {
+        top-panel id="m3-mobile-bar" height=60.0 fill="#2b2930ff" {
+            column spacing=6.0 padding=10.0 {
+                row align="center" spacing=14.0 {
+                    button label="📱" color="accent" size=24.0 rounding=24.0
+                    button label="🔍" color="text" size=20.0 rounding=24.0
+                    spacer
+                    device-switcher style="compact"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="m3-nav-bar" height=72.0 fill="#2b2930ff" {
+            row align="center" spacing=16.0 {
+                spacer
+                menu-bar id="category-nav" style="icons" size=26.0
+                spacer
+            }
+        }
+        central-panel id="m3-mobile-feed" fill="#1c1b1fff" {
+            column spacing=14.0 padding=14.0 {
+                catalog-view style="floating_cards" columns=1 rounding=28.0 border-width=1.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+    layout target="tv" {
+        top-panel id="gtv-header" height=80.0 fill="#2b2930ff" {
+            column spacing=10.0 padding=16.0 {
+                row align="center" spacing=20.0 {
+                    button label="📺" color="accent" size=30.0 rounding=28.0
+                    button label="🔍" color="text" size=24.0 rounding=28.0
+                    button label="⚙️" color="text" size=24.0 rounding=28.0
+                    spacer
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="gtv-footer" height=72.0 fill="#2b2930ff" {
+            row align="center" spacing=20.0 {
+                spacer
+                menu-bar id="category-nav" style="icons" size=28.0
+                spacer
+            }
+        }
+        central-panel id="gtv-grid" fill="#1c1b1fff" {
+            column spacing=24.0 padding=28.0 {
+                catalog-view style="floating_cards" columns=4 rounding=28.0 border-width=2.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+}

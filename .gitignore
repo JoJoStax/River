@@ -1,0 +1,70 @@
+# =====================================================================
+# River Workspace .gitignore
+# =====================================================================
+
+# --- Rust & Cargo Build Artifacts ---
+/target/
+**/*.rs.bk
+*.pdb
+*.lib
+*.rmeta
+
+# --- Android & APK Build Artifacts ---
+*.keystore
+*.jks
+*.apk
+*.aab
+*.so
+.gradle/
+local.properties
+ndk-build/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# --- Databases & Runtime Data ---
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+data/
+logs/
+*.log
+
+# --- Environment & Secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+secrets.*
+
+# --- IDEs & Editors ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.iml
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# --- Temporary, Scratch & Patch Files ---
+scratch/
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
+*.patch
+*.diff

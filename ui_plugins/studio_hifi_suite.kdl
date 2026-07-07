@@ -1,0 +1,102 @@
+plugin id="studio-hifi-suite" name="Studio Hi-Fi" mode="hotplug" {
+    style {
+        palette accent="#00ff00" secondary="#ff9900" text="#ffffff" border="#00ff00" background="#1a1a1a"
+        typography family="monospace" header-size=20.0 body-size=13.0
+        spacing item-x=8.0 item-y=8.0 padding=10.0
+        background-type "gradient"
+        fill "#121214"
+        secondary "#242428"
+    }
+    layout target="desktop" {
+        top-panel id="eq-display" height=56.0 fill="#111111ff" {
+            column spacing=6.0 padding=10.0 {
+                row align="center" spacing=16.0 {
+                    image url="https://raw.githubusercontent.com/egui/egui/master/crates/egui/assets/ferris.svg" width=32.0 height=32.0 rounding=4.0
+                    heading text="Winamp 2.81" color="accent" size=18.0
+                    spacer
+                    button label="Play" color="accent"
+                    button label="Pause" color="secondary"
+                    button label="Stop" color="text"
+                }
+                row align="center" spacing=10.0 {
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        left-panel id="playlist-nav" width=180.0 fill="#141414ff" {
+            column spacing=10.0 padding=12.0 {
+                heading text="Library" size=15.0 color="secondary"
+                separator
+                menu-bar id="category-nav" style="brackets"
+            }
+        }
+        bottom-panel id="time-footer" height=28.0 fill="#111111ff" {
+            row align="center" spacing=12.0 {
+                label text="03:42 / 45:18" color="accent" size=12.0
+                spacer
+            }
+        }
+        central-panel id="playlist-listing" fill="#1a1a1a80" {
+            column spacing=10.0 padding=14.0 {
+                catalog-view style="list" columns=1 rounding=2.0 border-width=1.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+    layout target="mobile" {
+        top-panel id="mobile-header" height=60.0 fill="#111111ff" {
+            column spacing=6.0 padding=8.0 {
+                row align="center" spacing=12.0 {
+                    heading text="Walkman" color="accent" size=18.0
+                    spacer
+                }
+                row align="center" spacing=8.0 {
+                    device-switcher style="compact"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="mobile-nav" height=54.0 fill="#141414ff" {
+            row align="center" spacing=8.0 {
+                menu-bar id="category-nav" style="brackets"
+            }
+        }
+        central-panel id="mobile-feed" fill="#1a1a1aff" {
+            column spacing=10.0 padding=10.0 {
+                catalog-view style="list" columns=1 rounding=4.0 border-width=1.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+    layout target="tv" {
+        top-panel id="tv-header" height=80.0 fill="#111111ff" {
+            column spacing=10.0 padding=14.0 {
+                row align="center" spacing=20.0 {
+                    heading text="Receiver" color="accent" size=26.0
+                    spacer
+                }
+                row align="center" spacing=14.0 {
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="tv-footer" height=50.0 fill="#111111ff" {
+            row align="center" spacing=20.0 {
+                label text="Select   Play   Balance   Library" color="accent" size=16.0
+                spacer
+                menu-bar id="category-nav" style="brackets"
+            }
+        }
+        central-panel id="tv-grid" fill="#1a1a1aff" {
+            column spacing=24.0 padding=28.0 {
+                catalog-view style="floating_cards" columns=2 rounding=12.0 border-width=2.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+}

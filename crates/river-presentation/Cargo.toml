@@ -1,0 +1,13 @@
+[package]
+name = "river-presentation"
+version = "0.1.0"
+edition = "2021"
+description = "MVI (Model-View-Intent) Presentation Engine for River: Intents, State Snapshots, and AppStore"
+
+[dependencies]
+river-core = { workspace = true }
+river-ports = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,14 @@
+[package]
+name = "river-plugin-rss"
+version = "0.1.0"
+edition = "2021"
+description = "RSS podcast feed adapter implementing PluginProvider"
+
+[dependencies]
+river-core = { workspace = true }
+river-ports = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

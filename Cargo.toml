@@ -1,0 +1,48 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/river-core",
+    "crates/river-ports",
+    "crates/river-services",
+    "crates/river-adapters/storage-sqlite",
+    "crates/river-adapters/network-reqwest",
+    "crates/river-presentation",
+    "crates/river-engine",
+    "crates/river-cli",
+    "crates/river-app",
+]
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "1"
+anyhow = "1"
+async-trait = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+clap = { version = "4", features = ["derive"] }
+url = "2"
+chrono = { version = "0.4", features = ["serde"] }
+kdl = "6.7"
+eframe = { version = "0.29", default-features = false, features = ["default_fonts", "glow", "x11", "wayland", "android-game-activity"] }
+egui = "0.29"
+egui_extras = { version = "0.29", features = ["svg", "image", "http"] }
+
+# Internal workspace crates
+river-core = { path = "crates/river-core" }
+river-ports = { path = "crates/river-ports" }
+river-services = { path = "crates/river-services" }
+river-storage-sqlite = { path = "crates/river-adapters/storage-sqlite" }
+river-network-reqwest = { path = "crates/river-adapters/network-reqwest" }
+river-presentation = { path = "crates/river-presentation" }
+river-engine = { path = "crates/river-engine" }
+river-app = { path = "crates/river-app" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

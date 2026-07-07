@@ -1,0 +1,105 @@
+plugin id="windows-xp-suite" name="Windows XP" mode="hotplug" {
+    style {
+        palette accent="#0055ea" secondary="#46ad00" text="#ffffff" border="#d4d0c8" background="#04183b"
+        typography family="proportional" header-size=20.0 body-size=13.0
+        spacing item-x=10.0 item-y=10.0 padding=14.0
+        background-type "gradient"
+        fill "#003399"
+        secondary "#001030"
+    }
+    layout target="desktop" {
+        top-panel id="xp-header" height=48.0 fill="#0055eaff" {
+            column spacing=6.0 padding=8.0 {
+                row align="center" spacing=16.0 {
+                    image url="https://raw.githubusercontent.com/egui/egui/master/crates/egui/assets/ferris.svg" width=32.0 height=32.0 rounding=4.0
+                    heading text="Windows Media Player" color="text" size=18.0
+                    spacer
+                }
+                row align="center" spacing=10.0 {
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        left-panel id="xp-sidebar" width=200.0 fill="#6487dbff" {
+            column spacing=12.0 padding=14.0 {
+                heading text="Media Tasks" size=14.0 color="text"
+                separator
+                label text="• Play All" color="text" size=12.0
+                label text="• Copy to CD" color="text" size=12.0
+                separator
+                heading text="Other Places" size=14.0 color="text"
+                menu-bar id="category-nav" style="ascii_box"
+            }
+        }
+        bottom-panel id="xp-taskbar" height=36.0 fill="#0055eaff" {
+            row align="center" spacing=12.0 {
+                button label="start" color="secondary"
+                button label="Windows Media Player" color="border"
+                spacer
+                label text="4:20 PM" color="text" size=13.0
+            }
+        }
+        central-panel id="xp-content" fill="#04183b80" {
+            column spacing=16.0 padding=20.0 {
+                catalog-view style="channel_grid" columns=3 rounding=6.0 border-width=2.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+    layout target="mobile" {
+        top-panel id="pocket-top" height=60.0 fill="#0055eaff" {
+            column spacing=6.0 padding=8.0 {
+                row align="center" spacing=14.0 {
+                    heading text="Windows Media" color="text" size=16.0
+                    spacer
+                }
+                row align="center" spacing=8.0 {
+                    device-switcher style="compact"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="pocket-nav" height=50.0 fill="#0055eaff" {
+            row align="center" spacing=10.0 {
+                menu-bar id="category-nav" style="ascii_box"
+            }
+        }
+        central-panel id="pocket-feed" fill="#04183bff" {
+            column spacing=14.0 padding=14.0 {
+                catalog-view style="list" columns=1 rounding=4.0 border-width=1.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+    layout target="tv" {
+        top-panel id="mce-header" height=80.0 fill="#0055eaff" {
+            column spacing=10.0 padding=12.0 {
+                row align="center" spacing=20.0 {
+                    heading text="Media Center" color="text" size=26.0
+                    spacer
+                }
+                row align="center" spacing=14.0 {
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="mce-footer" height=52.0 fill="#0055eaff" {
+            row align="center" spacing=20.0 {
+                label text="Start   Navigate   Play" color="text" size=16.0
+                spacer
+                menu-bar id="category-nav" style="ascii_box"
+            }
+        }
+        central-panel id="mce-plaza" fill="#04183bff" {
+            column spacing=24.0 padding=28.0 {
+                catalog-view style="live_tiles" columns=4 rounding=12.0 border-width=2.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+}

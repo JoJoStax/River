@@ -1,0 +1,16 @@
+[package]
+name = "river-engine"
+version = "0.1.0"
+edition = "2021"
+description = "Composition Root for River: Dependency injection container tying ports, adapters, services, and presentation together"
+
+[dependencies]
+river-core = { workspace = true }
+river-ports = { workspace = true }
+river-services = { workspace = true }
+river-storage-sqlite = { workspace = true }
+river-network-reqwest = { workspace = true }
+river-presentation = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }

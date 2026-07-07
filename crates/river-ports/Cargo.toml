@@ -1,0 +1,12 @@
+[package]
+name = "river-ports"
+version = "0.1.0"
+edition = "2021"
+description = "Hexagonal Architecture Ports for River: inbound use cases and outbound adapter traits"
+
+[dependencies]
+river-core = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

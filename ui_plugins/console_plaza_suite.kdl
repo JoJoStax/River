@@ -1,0 +1,98 @@
+plugin id="console-plaza-suite" name="Console Plaza" mode="core" {
+    style {
+        palette accent="#e60012" secondary="#00c3e3" text="#ffffff" border="#e60012" background="#202020"
+        typography family="proportional" header-size=24.0 body-size=14.0
+        spacing item-x=12.0 item-y=12.0 padding=16.0
+        background-type "grid"
+        fill "#202020"
+        secondary "#00c3e3"
+    }
+    layout target="desktop" {
+        top-panel id="switch-header" height=48.0 fill="#2b2b2bff" {
+            column spacing=6.0 padding=8.0 {
+                row align="center" spacing=16.0 {
+                    image url="https://raw.githubusercontent.com/egui/egui/master/crates/egui/assets/ferris.svg" width=32.0 height=32.0 rounding=8.0
+                    heading text="Home Menu" color="text" size=18.0
+                    spacer
+                    label text="100%" color="accent" size=13.0
+                }
+                row align="center" spacing=10.0 {
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="switch-footer" height=36.0 fill="#2b2b2bff" {
+            row align="center" spacing=16.0 {
+                label text="Options   Launch   Back   Search" color="secondary" size=13.0
+                spacer
+            }
+        }
+        central-panel id="switch-plaza" fill="#20202080" {
+            column spacing=16.0 padding=20.0 {
+                row align="center" spacing=14.0 {
+                    menu-bar id="category-nav" style="wii_buttons"
+                }
+                separator
+                catalog-view style="channel_grid" columns=3 rounding=20.0 border-width=2.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+    layout target="mobile" {
+        top-panel id="mobile-header" height=60.0 fill="#2b2b2bff" {
+            column spacing=6.0 padding=8.0 {
+                row align="center" spacing=14.0 {
+                    heading text="Handheld" color="text" size=18.0
+                    spacer
+                }
+                row align="center" spacing=8.0 {
+                    device-switcher style="compact"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="mobile-nav" height=54.0 fill="#2b2b2bff" {
+            row align="center" spacing=10.0 {
+                menu-bar id="category-nav" style="wii_buttons"
+            }
+        }
+        central-panel id="mobile-feed" fill="#202020ff" {
+            column spacing=12.0 padding=12.0 {
+                catalog-view style="channel_grid" columns=1 rounding=16.0 border-width=2.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+    layout target="tv" {
+        top-panel id="tv-header" height=80.0 fill="#2b2b2bff" {
+            column spacing=10.0 padding=14.0 {
+                row align="center" spacing=20.0 {
+                    heading text="WaraWara Plaza" color="text" size=26.0
+                    spacer
+                    label text="100%" color="accent" size=16.0
+                }
+                row align="center" spacing=14.0 {
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="tv-footer" height=52.0 fill="#2b2b2bff" {
+            row align="center" spacing=20.0 {
+                label text="Select   Play   Category   Home" color="accent" size=16.0
+                spacer
+                menu-bar id="category-nav" style="wii_buttons"
+            }
+        }
+        central-panel id="tv-plaza" fill="#202020ff" {
+            column spacing=24.0 padding=28.0 {
+                catalog-view style="channel_grid" columns=4 rounding=24.0 border-width=2.0 {
+                    animation effect="none" speed=1.0
+                }
+            }
+        }
+    }
+}

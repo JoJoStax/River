@@ -1,0 +1,41 @@
+[package]
+name = "river-app"
+version = "0.1.0"
+edition = "2021"
+description = "Pure Rust cross-platform GUI application for Linux desktop and Android using eframe/egui"
+
+[lib]
+name = "river_app"
+crate-type = ["rlib", "cdylib"]
+
+[package.metadata.android]
+package = "com.river.mediahub"
+label = "River Media Hub"
+sdk_version = 34
+build_sdk_version = 34
+platform = 34
+target_sdk_version = 34
+min_sdk_version = 24
+
+[package.metadata.android.signing.release]
+path = "river.keystore"
+keystore_password = "river123"
+key_alias = "river"
+key_password = "river123"
+
+[dependencies]
+river-core = { workspace = true }
+river-presentation = { workspace = true }
+river-engine = { workspace = true }
+eframe = { workspace = true }
+egui = { workspace = true }
+egui_extras = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+kdl = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+winit = { version = "0.30", default-features = false }
+android-activity = { version = "0.6", default-features = false, features = ["game-activity"] }

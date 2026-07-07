@@ -1,0 +1,13 @@
+[package]
+name = "river-services"
+version = "0.1.0"
+edition = "2021"
+description = "Use cases and core business services for River implementing Inbound Ports"
+
+[dependencies]
+river-core = { workspace = true }
+river-ports = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }

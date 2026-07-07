@@ -1,0 +1,22 @@
+plugin id="empty" name="Empty" mode="hotplug" {
+    style {
+        palette accent="#808080" secondary="#606060" text="#ffffff" border="#303030" background="#101010"
+        typography family="proportional" header-size=20.0 body-size=14.0
+        spacing item-x=8.0 item-y=8.0 padding=16.0
+        background-type "solid"
+        fill "#101010"
+        secondary "#181818"
+    }
+    layout target="desktop" {
+        central-panel id="canvas" fill="#101010ff" {
+        }
+    }
+    layout target="mobile" {
+        central-panel id="canvas" fill="#101010ff" {
+        }
+    }
+    layout target="tv" {
+        central-panel id="canvas" fill="#101010ff" {
+        }
+    }
+}

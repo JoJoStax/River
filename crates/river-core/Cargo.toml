@@ -1,0 +1,10 @@
+[package]
+name = "river-core"
+version = "0.1.0"
+edition = "2021"
+description = "Domain Core for River: pure media models, entities, value objects, and error types"
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
