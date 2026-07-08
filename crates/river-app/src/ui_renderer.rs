@@ -9,7 +9,29 @@ use river_core::{MediaCategory, MediaItem};
 use river_presentation::{AppState, AppStore, CatalogState, Intent};
 use std::sync::Arc;
 
+// ============================================================================
+// RIVER KDL UI RENDERER ENGINE
+// ============================================================================
+// This module serves as the universal renderer for River's UI system.
+// It translates abstract KDL AST layout nodes (UiNode) into immediate-mode
+// egui widgets. It is designed to be 100% shared between:
+// 1. Dynamic Hotplug Mode: Evaluates AST nodes on the fly at runtime.
+// 2. Core Compiled Mode: Runs pre-parsed/AOT-optimized AST layouts.
+//
+// Key Responsibilities:
+// - Responsive layout scaling based on window dimensions and device aspect ratios.
+// - Safe area margin handling for mobile devices (camera notches & gesture bars).
+// - Recursive DOM tree walking for containers (row/column/box/scroll) & widgets.
+// - Fluid responsive grid calculations for media catalog presentation.
+// ============================================================================
+
 /// Common entry point for rendering any KDL UI layout (both Hotplug Dynamic and Core Compiled modes).
+///
+/// This function sets up the root presentation context:
+/// - Requests continuous repaints if background animations are active.
+/// - Computes responsive DPI scaling based on screen width (`0.60` to `1.0`).
+/// - Resolves the target device layout (`desktop`, `mobile`, `tv`) by checking window aspect ratio.
+/// - Renders background effects before walking the AST panel tree.
 pub fn render_theme_layout(
     config: &UiThemeConfig,
     ctx: &egui::Context,
@@ -52,7 +74,17 @@ pub fn render_theme_layout(
     );
 }
 
-/// Recursively walk top-level AST nodes and render egui window panels with responsive dimensions!
+/// Recursively walk top-level AST nodes and render egui window panels with responsive dimensions.
+///
+/// Panel Positioning & Mobile Safe Area Handling:
+/// On Android and mobile devices, edge-to-edge rendering can cause UI elements to collide
+/// with hardware cutouts and system navigation bars:
+/// - **Top Safe Area (`38.0 pt`)**: Prevents titles, search bars, and tabs from being obscured by
+///   camera hole-punch cutouts or top status bars.
+/// - **Bottom Safe Area (`24.0 pt`)**: Prevents bottom navigation controls from overlapping with
+///   the Android gesture navigation bar / home indicator.
+///
+/// If a layout omits a top or bottom panel, the safe area margins fall back onto the `central-panel`.
 pub fn render_ast_panels(
     nodes: &[UiNode],
     ctx: &egui::Context,
@@ -185,6 +217,19 @@ pub fn render_ast_panels(
     }
 }
 
+/// Recursively walk and evaluate AST layout nodes within an open egui UI container.
+///
+/// This engine processes two primary AST node types:
+/// 1. **Containers (`UiNode::Container`)**:
+///    - `row`: Renders children horizontally with automatic line wrapping.
+///    - `column`: Renders children vertically with themed spacing.
+///    - `box`: Wraps children in an styled background frame with padding and corner rounding.
+///    - `scroll`: Provides vertical scrollability for overflow content.
+///
+/// 2. **Widgets (`UiNode::Widget`)**:
+///    - Basic UI primitives: `heading`, `label`, `button`, `separator`, `spacer`.
+///    - Specialized components: `menu-bar` (category nav), `catalog-view` (media grids),
+///      `theme-switcher`, `device-switcher`, and network `image` / `svg` rendering.
 pub fn render_ui_nodes(
     ui: &mut egui::Ui,
     nodes: &[UiNode],
@@ -366,6 +411,13 @@ pub fn render_ui_nodes(
     }
 }
 
+/// Map semantic color token strings from KDL layouts to concrete `Color32` theme values.
+///
+/// Supported tokens:
+/// - `"accent"` -> `config.accent_color` (Primary interactive highlights, active tabs, buttons)
+/// - `"secondary"` -> `config.secondary_color` (Subtitles, secondary labels, spinners)
+/// - `"border"` -> `config.border_color` (Card outlines, dividers, terminal frames)
+/// - `"text"` / default -> `config.text_color` (Body text, standard labels)
 fn resolve_color(color: &str, config: &UiThemeConfig) -> egui::Color32 {
     match color {
         "accent" => config.accent_color,
@@ -376,7 +428,15 @@ fn resolve_color(color: &str, config: &UiThemeConfig) -> egui::Color32 {
     }
 }
 
-/// Render Media Category Navigation Buttons with wrapping and scaling!
+/// Render media category navigation buttons (`Video`, `Music`, `Manga`, `Podcasts`).
+///
+/// **IMMUTABLE ARCHITECTURAL RULE**:
+/// Core category names (`Video`, `Music`, `Manga`, `Podcasts`) are strictly enforced and can
+/// **never** be renamed or overridden by themes. Themes may only alter their visual presentation
+/// style (`icons`, `pills`, `brackets`, or standard text).
+///
+/// User interaction dispatches asynchronous `SelectCategory` and `LoadCatalogs` intents to the
+/// MVI store without blocking the UI thread.
 fn render_category_nav(
     ui: &mut egui::Ui,
     state: &AppState,
@@ -447,7 +507,8 @@ fn render_category_nav(
     });
 }
 
-/// Helper to eliminate duplicate async dispatch boilerplate across all catalog card layouts!
+/// Helper to eliminate duplicate async dispatch boilerplate across all catalog card layouts.
+/// Spawns a Tokio background task to send `Intent::AddToLibrary` to the MVI store.
 fn dispatch_add_to_library(store: &Arc<AppStore>, rt: &tokio::runtime::Runtime, item: &MediaItem) {
     let store_clone = store.clone();
     let item_clone = item.clone();
@@ -456,7 +517,19 @@ fn dispatch_add_to_library(store: &Arc<AppStore>, rt: &tokio::runtime::Runtime, 
     });
 }
 
-/// Render Media Catalog Items using Responsive Fluid Grids!
+/// Render Media Catalog items using responsive fluid grids and themed card layouts.
+///
+/// **Responsive Grid Calculation**:
+/// - Calculates available width and dynamically divides it by `min_card_width` (derived from card style).
+/// - Clamps column count between `1` and `requested_columns` to prevent horizontal clipping.
+/// - Calculates precise cell widths accounting for horizontal item spacing.
+///
+/// **Supported Card Styles**:
+/// - `live_tiles`: Windows Phone / Metro style vibrant colored tiles (blue, magenta, green).
+/// - `achievement_cards`: Xbox / Gaming style achievement unlock banners with gamerscore badges.
+/// - `channel_grid`: TV broadcast channel cards with touch activation buttons.
+/// - `terminal_feed`: Cyberpunk / command-line feed rows with monospace font styling.
+/// - `default`: Minimalist media rows with play buttons and link triggers.
 fn render_catalog_content(
     ui: &mut egui::Ui,
     state: &AppState,
