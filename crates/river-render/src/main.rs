@@ -1,15 +1,17 @@
 use eframe::egui;
-use river_app::RiverGuiApp;
 use river_engine::RiverEngine;
+use river_render::RiverGuiApp;
 use std::sync::Arc;
 
 fn main() -> eframe::Result<()> {
     tracing_subscriber::fmt::init();
 
+    let _ = std::fs::create_dir_all(".data");
+
     // Initialize Tokio runtime for background tasks
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     let engine = rt.block_on(async {
-        RiverEngine::new_with_db_path("river_gui.db")
+        RiverEngine::new_with_db_path(".data/river_gui.db")
             .await
             .expect("Failed to initialize RiverEngine")
     });

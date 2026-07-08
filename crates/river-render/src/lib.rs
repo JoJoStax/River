@@ -25,29 +25,29 @@ pub struct RiverGuiApp {
 }
 
 const EXTRA_THEME_DIRS: &[&str] = &[
-    "/storage/emulated/0/Documents/River/ui_plugins",
-    "/storage/emulated/0/Download/River/ui_plugins",
-    "/sdcard/Documents/River/ui_plugins",
-    "/sdcard/Download/River/ui_plugins",
-    "/storage/emulated/0/River/ui_plugins",
-    "/sdcard/River/ui_plugins",
+    "/storage/emulated/0/Documents/River/plugins/ui",
+    "/storage/emulated/0/Download/River/plugins/ui",
+    "/sdcard/Documents/River/plugins/ui",
+    "/sdcard/Download/River/plugins/ui",
+    "/storage/emulated/0/River/plugins/ui",
+    "/sdcard/River/plugins/ui",
 ];
 
 impl RiverGuiApp {
     pub fn new(engine: Arc<RiverEngine>, rt: tokio::runtime::Runtime) -> Self {
         let mut ui_manager = UiPluginManager::new();
 
-        // Ensure ui_plugins/ directory and default seed files exist on clean installs!
-        let _ = std::fs::create_dir_all("ui_plugins");
+        // Ensure plugins/ui/ directory and default seed files exist on clean installs!
+        let _ = std::fs::create_dir_all("plugins/ui");
         let default_themes = [
-            ("ui_plugins/default_android_style.kdl", include_str!("../../../ui_plugins/default_android_style.kdl")),
-            ("ui_plugins/one_ui_suite.kdl", include_str!("../../../ui_plugins/one_ui_suite.kdl")),
-            ("ui_plugins/cyberdeck_pro_suite.kdl", include_str!("../../../ui_plugins/cyberdeck_pro_suite.kdl")),
-            ("ui_plugins/console_plaza_suite.kdl", include_str!("../../../ui_plugins/console_plaza_suite.kdl")),
-            ("ui_plugins/studio_hifi_suite.kdl", include_str!("../../../ui_plugins/studio_hifi_suite.kdl")),
-            ("ui_plugins/windows_xp_suite.kdl", include_str!("../../../ui_plugins/windows_xp_suite.kdl")),
-            ("ui_plugins/iphone_ios_suite.kdl", include_str!("../../../ui_plugins/iphone_ios_suite.kdl")),
-            ("ui_plugins/empty.kdl", include_str!("../../../ui_plugins/empty.kdl")),
+            ("plugins/ui/default_android_style.kdl", include_str!("../../../plugins/ui/default_android_style.kdl")),
+            ("plugins/ui/one_ui_suite.kdl", include_str!("../../../plugins/ui/one_ui_suite.kdl")),
+            ("plugins/ui/cyberdeck_pro_suite.kdl", include_str!("../../../plugins/ui/cyberdeck_pro_suite.kdl")),
+            ("plugins/ui/console_plaza_suite.kdl", include_str!("../../../plugins/ui/console_plaza_suite.kdl")),
+            ("plugins/ui/studio_hifi_suite.kdl", include_str!("../../../plugins/ui/studio_hifi_suite.kdl")),
+            ("plugins/ui/windows_xp_suite.kdl", include_str!("../../../plugins/ui/windows_xp_suite.kdl")),
+            ("plugins/ui/iphone_ios_suite.kdl", include_str!("../../../plugins/ui/iphone_ios_suite.kdl")),
+            ("plugins/ui/empty.kdl", include_str!("../../../plugins/ui/empty.kdl")),
         ];
         for (path, content) in default_themes {
             // ALWAYS load embedded theme directly from memory first so UI is 100% available even if disk I/O fails!
@@ -67,8 +67,8 @@ impl RiverGuiApp {
             }
         }
 
-        // Automatically scan ui_plugins/ to pick up any user customizations or additional themes!
-        ui_manager.scan_plugins_dir("ui_plugins");
+        // Automatically scan plugins/ui/ to pick up any user customizations or additional themes!
+        ui_manager.scan_plugins_dir("plugins/ui");
         for dir in EXTRA_THEME_DIRS {
             ui_manager.scan_plugins_dir(dir);
         }
@@ -90,7 +90,7 @@ impl eframe::App for RiverGuiApp {
         }
 
         // Automatically check folder for new or modified KDL themes (hot-reloading / auto-detection!)
-        self.ui_manager.scan_plugins_dir("ui_plugins");
+        self.ui_manager.scan_plugins_dir("plugins/ui");
         for dir in EXTRA_THEME_DIRS {
             self.ui_manager.scan_plugins_dir(dir);
         }
@@ -104,7 +104,7 @@ impl eframe::App for RiverGuiApp {
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.heading("No active KDL UI plugin loaded!");
-                ui.label("Please ensure ui_plugins/ contains valid KDL theme files.");
+                ui.label("Please ensure plugins/ui/ contains valid KDL theme files.");
             });
         }
     }

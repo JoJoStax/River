@@ -1,11 +1,11 @@
 [package]
-name = "river-app"
+name = "river-render"
 version = "0.1.0"
 edition = "2021"
-description = "Pure Rust cross-platform GUI application for Linux desktop and Android using eframe/egui"
+description = "Pure Rust cross-platform GUI renderer and launcher for Linux desktop and Android using eframe/egui KDL"
 
 [lib]
-name = "river_app"
+name = "river_render"
 crate-type = ["rlib", "cdylib"]
 
 [package.metadata.android]

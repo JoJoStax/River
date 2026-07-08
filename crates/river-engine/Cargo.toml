@@ -8,12 +8,8 @@ description = "Composition Root for River: Dependency injection container tying 
 river-core = { workspace = true }
 river-ports = { workspace = true }
 river-services = { workspace = true }
-river-storage-sqlite = { workspace = true }
-river-network-reqwest = { workspace = true }
-river-plugin-stremio = { workspace = true }
-river-plugin-mangadex = { workspace = true }
-river-plugin-jamendo = { workspace = true }
-river-plugin-rss = { workspace = true }
+river-storage = { workspace = true }
+river-network = { workspace = true }
 river-presentation = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

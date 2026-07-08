@@ -4,16 +4,11 @@ members = [
     "crates/river-core",
     "crates/river-ports",
     "crates/river-services",
-    "crates/river-adapters/storage-sqlite",
-    "crates/river-adapters/network-reqwest",
-    "crates/river-adapters/plugin-stremio",
-    "crates/river-adapters/plugin-mangadex",
-    "crates/river-adapters/plugin-jamendo",
-    "crates/river-adapters/plugin-rss",
+    "crates/river-storage",
+    "crates/river-network",
     "crates/river-presentation",
     "crates/river-engine",
-    "crates/river-cli",
-    "crates/river-app",
+    "crates/river-render",
 ]
 
 [workspace.dependencies]
@@ -39,15 +34,11 @@ egui_extras = { version = "0.29", features = ["svg", "image", "http"] }
 river-core = { path = "crates/river-core" }
 river-ports = { path = "crates/river-ports" }
 river-services = { path = "crates/river-services" }
-river-storage-sqlite = { path = "crates/river-adapters/storage-sqlite" }
-river-network-reqwest = { path = "crates/river-adapters/network-reqwest" }
-river-plugin-stremio = { path = "crates/river-adapters/plugin-stremio" }
-river-plugin-mangadex = { path = "crates/river-adapters/plugin-mangadex" }
-river-plugin-jamendo = { path = "crates/river-adapters/plugin-jamendo" }
-river-plugin-rss = { path = "crates/river-adapters/plugin-rss" }
+river-storage = { path = "crates/river-storage" }
+river-network = { path = "crates/river-network" }
 river-presentation = { path = "crates/river-presentation" }
 river-engine = { path = "crates/river-engine" }
-river-app = { path = "crates/river-app" }
+river-render = { path = "crates/river-render" }
 
 [profile.release]
 opt-level = 3

@@ -2,7 +2,7 @@
 name = "river-services"
 version = "0.1.0"
 edition = "2021"
-description = "Use cases and core business services for River implementing Inbound Ports"
+description = "Core backend for API and functionality translation modules, unified KDL schema matching, and use case services"
 
 [dependencies]
 river-core = { workspace = true }
