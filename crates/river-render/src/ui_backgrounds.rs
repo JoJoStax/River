@@ -3,18 +3,23 @@ use eframe::egui;
 
 /// Draws complex, dynamic backgrounds (gradients, grids, matrix rain, twinkling stars, SVG/images)
 pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time: f64) {
-    if config.background_type == "solid" {
+    if config.background_type == "solid" || config.background_type.is_empty() {
         return;
     }
+    ctx.request_repaint();
     let rect = ctx.screen_rect();
     let painter = ctx.layer_painter(egui::LayerId::background());
+
+    let speed = if config.background_speed > 0.0 { config.background_speed } else { 1.0 };
 
     match config.background_type.as_str() {
         "gradient" => {
             let steps = 30;
             let step_h = rect.height() / steps as f32;
             for i in 0..steps {
-                let t = i as f32 / (steps - 1) as f32;
+                let base_t = i as f32 / (steps - 1) as f32;
+                let wave = ((time * speed as f64 + base_t as f64 * std::f64::consts::PI).sin() * 0.2 + 0.5) as f32;
+                let t = (base_t * 0.7 + wave * 0.3).clamp(0.0, 1.0);
                 let col = lerp_color(config.fill_color, config.background_color_2, t);
                 let r = egui::Rect::from_min_size(
                     egui::pos2(rect.min.x, rect.min.y + i as f32 * step_h),
@@ -25,8 +30,11 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
         }
         "grid" => {
             painter.rect_filled(rect, 0.0, config.fill_color);
-            let grid_size = 35.0;
-            let mut x = rect.min.x;
+            let grid_size = 36.0;
+            let offset_x = (time as f32 * speed * 15.0) % grid_size;
+            let offset_y = (time as f32 * speed * 25.0) % grid_size;
+
+            let mut x = rect.min.x + offset_x - grid_size;
             while x < rect.max.x {
                 painter.line_segment(
                     [egui::pos2(x, rect.min.y), egui::pos2(x, rect.max.y)],
@@ -34,7 +42,7 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
                 );
                 x += grid_size;
             }
-            let mut y = rect.min.y;
+            let mut y = rect.min.y + offset_y - grid_size;
             while y < rect.max.y {
                 painter.line_segment(
                     [egui::pos2(rect.min.x, y), egui::pos2(rect.max.x, y)],
@@ -43,14 +51,34 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
                 y += grid_size;
             }
         }
+        "waves" => {
+            painter.rect_filled(rect, 0.0, config.fill_color);
+            let num_waves = 5;
+            for w in 0..num_waves {
+                let wave_speed = speed * (1.0 + w as f32 * 0.3);
+                let amp = 35.0 + w as f32 * 15.0;
+                let freq = 0.006 + w as f32 * 0.002;
+                let y_base = rect.min.y + (rect.height() / (num_waves + 1) as f32) * (w + 1) as f32;
+
+                let mut prev_pos = egui::pos2(rect.min.x, y_base);
+                let mut x = rect.min.x;
+                while x <= rect.max.x {
+                    let y = y_base + ((x * freq + time as f32 * wave_speed) as f64).sin() as f32 * amp;
+                    let pos = egui::pos2(x, y);
+                    let stroke_col = lerp_color(config.accent_color, config.background_color_2, (w as f32) / (num_waves as f32));
+                    painter.line_segment([prev_pos, pos], egui::Stroke::new(2.5, stroke_col));
+                    prev_pos = pos;
+                    x += 12.0;
+                }
+            }
+        }
         "matrix" => {
             painter.rect_filled(rect, 0.0, config.fill_color);
-            ctx.request_repaint();
             let num_drops = (rect.width() / 25.0) as usize;
             for i in 0..num_drops {
                 let x = rect.min.x + i as f32 * 25.0 + 10.0;
-                let speed = config.background_speed * (100.0 + (i % 5) as f32 * 30.0);
-                let y = (time as f32 * speed + (i * 137) as f32) % (rect.height() + 200.0) - 100.0;
+                let drop_speed = speed * (100.0 + (i % 5) as f32 * 30.0);
+                let y = (time as f32 * drop_speed + (i * 137) as f32) % (rect.height() + 200.0) - 100.0;
                 painter.line_segment(
                     [egui::pos2(x, y - 40.0), egui::pos2(x, y)],
                     egui::Stroke::new(2.0, config.background_color_2),
@@ -60,11 +88,10 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
         }
         "stars" => {
             painter.rect_filled(rect, 0.0, config.fill_color);
-            ctx.request_repaint();
             for i in 0..60 {
                 let x = rect.min.x + ((i * 313) % (rect.width() as usize + 1)) as f32;
                 let y = rect.min.y + ((i * 701) % (rect.height() as usize + 1)) as f32;
-                let twinkle = ((time * config.background_speed as f64 + i as f64).sin() * 0.5 + 0.5) as f32;
+                let twinkle = ((time * speed as f64 + i as f64).sin() * 0.5 + 0.5) as f32;
                 let radius = 1.0 + twinkle * 1.5;
                 let col = lerp_color(config.background_color_2, config.accent_color, twinkle);
                 painter.circle_filled(egui::pos2(x, y), radius, col);

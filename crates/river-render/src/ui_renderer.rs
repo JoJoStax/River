@@ -40,13 +40,16 @@ pub fn render_theme_layout(
     rt: &tokio::runtime::Runtime,
     ui_manager: &mut UiPluginManager,
 ) {
-    if config.animation_effect != "none" {
+    let screen_width = ctx.screen_rect().width();
+    let screen_height = ctx.screen_rect().height();
+    let target = ui_manager.resolve_target_device(screen_width, screen_height).to_string();
+
+    if config.requires_continuous_repaint(&target) {
         ctx.request_repaint();
     }
     let time = ctx.input(|i| i.time);
 
     // Calculate responsive scale factor based on screen width!
-    let screen_width = ctx.screen_rect().width();
     let scale = (screen_width / 850.0).clamp(0.60, 1.0);
 
     // Apply custom layout spacing density scaled for current window dimensions!
@@ -55,8 +58,6 @@ pub fn render_theme_layout(
     });
 
     // Retrieve active AST DOM layout automatically calculated by aspect ratio and device ID!
-    let screen_height = ctx.screen_rect().height();
-    let target = ui_manager.resolve_target_device(screen_width, screen_height).to_string();
     let active_nodes = config.get_active_layout(&target);
 
     draw_complex_background(ctx, config, time);
@@ -112,6 +113,7 @@ pub fn render_ast_panels(
                 size,
                 fill,
                 children,
+                ..
             } => {
                 let panel_id = if id.is_empty() { kind } else { id };
                 match kind.as_str() {
@@ -250,7 +252,23 @@ pub fn render_ui_nodes(
                 spacing,
                 padding,
                 children,
-            } => match kind.as_str() {
+                effect,
+                speed,
+            } => {
+                let active_effect = if effect == "none" || effect.is_empty() { config.animation_effect.as_str() } else { effect.as_str() };
+                let active_speed = if *speed > 0.0 { *speed } else if config.animation_speed > 0.0 { config.animation_speed } else { 1.0 };
+                let pulse = ((time * active_speed as f64 * 2.0).sin() * 0.5 + 0.5) as f32;
+
+                let offset_y = match active_effect {
+                    "float" => ((time * active_speed as f64 * 2.5).sin() * 5.0 * scale as f64) as f32,
+                    "bounce" => -(((time * active_speed as f64 * 3.5).sin().abs()) * 7.0 * scale as f64) as f32,
+                    _ => 0.0,
+                };
+                if offset_y.abs() > 0.1 {
+                    ui.add_space(offset_y);
+                }
+
+                match kind.as_str() {
                 "row" => {
                     ui.horizontal_wrapped(|ui| {
                         if *spacing > 0.0 {
@@ -272,15 +290,22 @@ pub fn render_ui_nodes(
                     });
                 }
                 "box" => {
-                    egui::Frame::none()
+                    let mut frame = egui::Frame::none()
                         .fill(config.fill_color)
                         .inner_margin(*padding * scale)
-                        .rounding(config.rounding * scale)
-                        .show(ui, |ui| {
-                            render_ui_nodes(
-                                ui, children, state, store, rt, config, time, scale, ui_manager,
-                            );
-                        });
+                        .rounding(config.rounding * scale);
+                    if active_effect == "glow" {
+                        frame = frame.stroke(egui::Stroke::new((1.5 + pulse * 2.5) * scale, crate::ui_backgrounds::lerp_color(config.border_color, config.accent_color, pulse)));
+                    } else if active_effect == "pulse" {
+                        frame = frame.stroke(egui::Stroke::new((1.0 + pulse * 1.5) * scale, config.border_color));
+                    } else if config.border_width > 0.0 {
+                        frame = frame.stroke(egui::Stroke::new(config.border_width * scale, config.border_color));
+                    }
+                    frame.show(ui, |ui| {
+                        render_ui_nodes(
+                            ui, children, state, store, rt, config, time, scale, ui_manager,
+                        );
+                    });
                 }
                 "scroll" | _ => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -288,6 +313,7 @@ pub fn render_ui_nodes(
                             ui, children, state, store, rt, config, time, scale, ui_manager,
                         );
                     });
+                }
                 }
             },
             UiNode::Widget {
@@ -302,6 +328,7 @@ pub fn render_ui_nodes(
                 rounding,
                 border_width,
                 effect,
+                speed,
             } => match kind.as_str() {
                 "heading" => {
                     let col = resolve_color(color, config);
@@ -349,8 +376,10 @@ pub fn render_ui_nodes(
                     render_category_nav(ui, state, store, rt, config, style, *size, scale);
                 }
                 "catalog-view" => {
+                    let active_effect = if effect == "none" || effect.is_empty() { config.animation_effect.as_str() } else { effect.as_str() };
+                    let active_speed = if *speed > 0.0 { *speed } else if config.animation_speed > 0.0 { config.animation_speed } else { 1.0 };
                     render_catalog_content(
-                        ui, state, store, rt, config, time, style, *columns, *rounding, *border_width, effect, scale,
+                        ui, state, store, rt, config, time, style, *columns, *rounding, *border_width, active_effect, active_speed, scale,
                     );
                 }
                 "theme-switcher" => {
@@ -542,9 +571,9 @@ fn render_catalog_content(
     rounding: f32,
     border_width: f32,
     effect: &str,
+    speed: f32,
     scale: f32,
 ) {
-    let pulse = ((time * config.animation_speed as f64).sin() * 0.5 + 0.5) as f32;
     let font_fam = config.get_font_family();
 
     match &state.catalog_state {
@@ -610,11 +639,30 @@ fn render_catalog_content(
                                 .spacing([config.spacing_x * scale, config.spacing_y * scale])
                                 .show(ui, |ui| {
                                     for (idx, item) in cat.items.iter().enumerate() {
-                                        let stroke_width = if effect == "pulse" {
-                                            (border_width + pulse * 1.5) * scale
-                                        } else {
-                                            border_width * scale
+                                        let phase = idx as f64 * 0.4;
+                                        let card_pulse = ((time * speed as f64 * 2.0 + phase).sin() * 0.5 + 0.5) as f32;
+                                        let card_wave = ((time * speed as f64 * 1.5 + phase).sin() * 0.5 + 0.5) as f32;
+
+                                        let stroke = match effect {
+                                            "pulse" => egui::Stroke::new((border_width + card_pulse * 2.0) * scale, config.border_color),
+                                            "glow" => egui::Stroke::new((border_width.max(1.5) + card_pulse * 3.0) * scale, crate::ui_backgrounds::lerp_color(config.border_color, config.accent_color, card_pulse)),
+                                            "shimmer" => egui::Stroke::new((border_width.max(1.0) + card_wave * 1.5) * scale, crate::ui_backgrounds::lerp_color(config.border_color, config.secondary_color, card_wave)),
+                                            _ => egui::Stroke::new(border_width * scale, config.border_color),
                                         };
+
+                                        let offset = match effect {
+                                            "float" => egui::vec2(0.0, ((time * speed as f64 * 2.5 + phase).sin() * 5.0 * scale as f64) as f32),
+                                            "bounce" => egui::vec2(0.0, -(((time * speed as f64 * 3.5 + phase).sin().abs()) * 7.0 * scale as f64) as f32),
+                                            "slide_in_left" => egui::vec2((card_wave - 0.5) * 12.0 * scale, 0.0),
+                                            "slide_in_right" => egui::vec2((0.5 - card_wave) * 12.0 * scale, 0.0),
+                                            _ => egui::Vec2::ZERO,
+                                        };
+
+                                        if offset != egui::Vec2::ZERO {
+                                            if offset.y > 0.0 {
+                                                ui.add_space(offset.y);
+                                            }
+                                        }
 
                                         ui.allocate_ui_with_layout(
                                             egui::vec2(cell_width, 0.0),
@@ -622,19 +670,27 @@ fn render_catalog_content(
                                             |ui| {
                                                 match layout_style {
                                                     "live_tiles" => {
-                                                        let tile_color = if idx % 3 == 0 {
+                                                        let base_tile_color = if idx % 3 == 0 {
                                                             egui::Color32::from_rgb(0, 164, 239)
                                                         } else if idx % 3 == 1 {
                                                             egui::Color32::from_rgb(255, 0, 151)
                                                         } else {
                                                             egui::Color32::from_rgb(0, 138, 0)
                                                         };
+                                                        let tile_color = if effect == "glow" || effect == "shimmer" {
+                                                            crate::ui_backgrounds::lerp_color(base_tile_color, config.accent_color, card_pulse * 0.35)
+                                                        } else {
+                                                            base_tile_color
+                                                        };
 
-                                                        egui::Frame::none()
+                                                        let mut frame = egui::Frame::none()
                                                             .rounding(rounding * scale)
                                                             .fill(tile_color)
-                                                            .inner_margin(12.0 * scale)
-                                                            .show(ui, |ui| {
+                                                            .inner_margin((12.0 + card_pulse * if effect == "pulse" { 1.5 } else { 0.0 }) * scale);
+                                                        if effect == "glow" || effect == "pulse" || effect == "shimmer" || border_width > 0.0 {
+                                                            frame = frame.stroke(stroke);
+                                                        }
+                                                        frame.show(ui, |ui| {
                                                                 let response = ui.allocate_response(
                                                                     egui::vec2(ui.available_width(), 85.0 * scale),
                                                                     egui::Sense::click(),
@@ -680,12 +736,9 @@ fn render_catalog_content(
                                                     "achievement_cards" => {
                                                         egui::Frame::none()
                                                             .rounding(rounding * scale)
-                                                            .stroke(egui::Stroke::new(
-                                                                stroke_width,
-                                                                config.border_color,
-                                                            ))
+                                                            .stroke(stroke)
                                                             .fill(config.fill_color)
-                                                            .inner_margin(12.0 * scale)
+                                                            .inner_margin((12.0 + card_pulse * if effect == "pulse" { 1.5 } else { 0.0 }) * scale)
                                                             .show(ui, |ui| {
                                                                 ui.horizontal_wrapped(|ui| {
                                                                     ui.label(
@@ -736,12 +789,9 @@ fn render_catalog_content(
                                                     "channel_grid" => {
                                                         egui::Frame::none()
                                                             .rounding(rounding * scale)
-                                                            .stroke(egui::Stroke::new(
-                                                                stroke_width,
-                                                                config.border_color,
-                                                            ))
+                                                            .stroke(stroke)
                                                             .fill(config.fill_color)
-                                                            .inner_margin(14.0 * scale)
+                                                            .inner_margin((14.0 + card_pulse * if effect == "pulse" { 1.5 } else { 0.0 }) * scale)
                                                             .show(ui, |ui| {
                                                                 ui.vertical(|ui| {
                                                                     ui.label(
@@ -786,12 +836,9 @@ fn render_catalog_content(
                                                     "terminal_feed" => {
                                                         egui::Frame::none()
                                                             .rounding(rounding * scale)
-                                                            .stroke(egui::Stroke::new(
-                                                                stroke_width,
-                                                                config.border_color,
-                                                            ))
+                                                            .stroke(stroke)
                                                             .fill(config.fill_color)
-                                                            .inner_margin(10.0 * scale)
+                                                            .inner_margin((10.0 + card_pulse * if effect == "pulse" { 1.5 } else { 0.0 }) * scale)
                                                             .show(ui, |ui| {
                                                                 ui.horizontal_wrapped(|ui| {
                                                                     ui.label(
@@ -822,12 +869,9 @@ fn render_catalog_content(
                                                     _ => {
                                                         egui::Frame::none()
                                                             .rounding(rounding * scale)
-                                                            .stroke(egui::Stroke::new(
-                                                                stroke_width,
-                                                                config.border_color,
-                                                            ))
+                                                            .stroke(stroke)
                                                             .fill(config.fill_color)
-                                                            .inner_margin(10.0 * scale)
+                                                            .inner_margin((10.0 + card_pulse * if effect == "pulse" { 1.5 } else { 0.0 }) * scale)
                                                             .show(ui, |ui| {
                                                                 ui.horizontal_wrapped(|ui| {
                                                                     ui.label(

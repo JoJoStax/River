@@ -1,0 +1,92 @@
+plugin id="hyperpulse-cyber-suite" name="HyperPulse Cyberpunk 2077" mode="hotplug" {
+    style {
+        palette accent="#00ff66" secondary="#bc00ff" text="#00ffcc" border="#00ff66a0" background="#05030a"
+        typography family="monospace" header-size=24.0 body-size=14.0
+        spacing item-x=14.0 item-y=14.0 padding=18.0
+        background-type "matrix"
+        fill "#00ff66"
+        secondary "#002b11"
+        speed 3.5
+    }
+    layout target="desktop" {
+        top-panel id="cyber-top" height=64.0 fill="#0a0514ee" {
+            column spacing=6.0 padding=12.0 {
+                row align="center" spacing=16.0 {
+                    heading text=">_ RIVER // HYPER_PULSE_OS [SYS.ONLINE]" color="accent" size=20.0
+                    spacer
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="cyber-bottom" height=72.0 fill="#0a0514ee" {
+            row align="center" spacing=20.0 {
+                spacer
+                menu-bar id="category-nav" style="brackets" size=24.0
+                spacer
+            }
+        }
+        central-panel id="cyber-central" fill="#00000000" {
+            column spacing=16.0 padding=20.0 {
+                row align="center" spacing=10.0 {
+                    label text="[ CYBERDECK MATRIX LINK ESTABLISHED @ 60 FPS ]" color="secondary" size=13.0
+                }
+                catalog-view style="terminal_feed" columns=2 rounding=12.0 border-width=2.0 {
+                    animation effect="glow" speed=3.0
+                }
+            }
+        }
+    }
+    layout target="mobile" {
+        top-panel id="cyber-mobile-top" height=62.0 fill="#0a0514ee" {
+            column spacing=4.0 padding=10.0 {
+                row align="center" spacing=12.0 {
+                    heading text=">_ HYPER_PULSE v2" color="accent" size=17.0
+                    spacer
+                    device-switcher style="compact"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="cyber-mobile-bottom" height=70.0 fill="#0a0514ee" {
+            row align="center" spacing=14.0 {
+                spacer
+                menu-bar id="category-nav" style="brackets" size=20.0
+                spacer
+            }
+        }
+        central-panel id="cyber-mobile-feed" fill="#00000000" {
+            column spacing=14.0 padding=14.0 {
+                catalog-view style="terminal_feed" columns=1 rounding=12.0 border-width=2.0 {
+                    animation effect="glow" speed=3.0
+                }
+            }
+        }
+    }
+    layout target="tv" {
+        top-panel id="cyber-tv-top" height=80.0 fill="#0a0514ee" {
+            column spacing=8.0 padding=16.0 {
+                row align="center" spacing=20.0 {
+                    heading text=">_ RIVER // HYPER_PULSE_OS CINEMA DISPLAY" color="accent" size=26.0
+                    spacer
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="cyber-tv-bottom" height=76.0 fill="#0a0514ee" {
+            row align="center" spacing=24.0 {
+                spacer
+                menu-bar id="category-nav" style="brackets" size=26.0
+                spacer
+            }
+        }
+        central-panel id="cyber-tv-grid" fill="#00000000" {
+            column spacing=22.0 padding=26.0 {
+                catalog-view style="terminal_feed" columns=3 rounding=14.0 border-width=2.5 {
+                    animation effect="glow" speed=3.0
+                }
+            }
+        }
+    }
+}

@@ -41,13 +41,9 @@ impl RiverGuiApp {
         let _ = std::fs::create_dir_all("plugins/ui");
         let default_themes = [
             ("plugins/ui/default_android_style.kdl", include_str!("../../../plugins/ui/default_android_style.kdl")),
-            ("plugins/ui/one_ui_suite.kdl", include_str!("../../../plugins/ui/one_ui_suite.kdl")),
-            ("plugins/ui/cyberdeck_pro_suite.kdl", include_str!("../../../plugins/ui/cyberdeck_pro_suite.kdl")),
-            ("plugins/ui/console_plaza_suite.kdl", include_str!("../../../plugins/ui/console_plaza_suite.kdl")),
-            ("plugins/ui/studio_hifi_suite.kdl", include_str!("../../../plugins/ui/studio_hifi_suite.kdl")),
-            ("plugins/ui/windows_xp_suite.kdl", include_str!("../../../plugins/ui/windows_xp_suite.kdl")),
-            ("plugins/ui/iphone_ios_suite.kdl", include_str!("../../../plugins/ui/iphone_ios_suite.kdl")),
             ("plugins/ui/empty.kdl", include_str!("../../../plugins/ui/empty.kdl")),
+            ("plugins/ui/quantum_glass_suite.kdl", include_str!("../../../plugins/ui/quantum_glass_suite.kdl")),
+            ("plugins/ui/hyperpulse_cyber_suite.kdl", include_str!("../../../plugins/ui/hyperpulse_cyber_suite.kdl")),
         ];
         for (path, content) in default_themes {
             // ALWAYS load embedded theme directly from memory first so UI is 100% available even if disk I/O fails!

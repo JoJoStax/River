@@ -25,12 +25,16 @@ pub enum UiNode {
         size: f32,
         fill: egui::Color32,
         children: Vec<UiNode>,
+        effect: String,
+        speed: f32,
     },
     Container {
         kind: String, // "row", "column", "box", "scroll"
         spacing: f32,
         padding: f32,
         children: Vec<UiNode>,
+        effect: String,
+        speed: f32,
     },
     Widget {
         kind: String, // "heading", "label", "button", "separator", "spacer", "menu-bar", "catalog-view", "theme-switcher", "device-switcher", "image", "svg"
@@ -44,7 +48,30 @@ pub enum UiNode {
         rounding: f32,
         border_width: f32,
         effect: String,
+        speed: f32,
     },
+}
+
+impl UiNode {
+    pub fn effect(&self) -> &str {
+        match self {
+            UiNode::Panel { effect, .. } => effect,
+            UiNode::Container { effect, .. } => effect,
+            UiNode::Widget { effect, .. } => effect,
+        }
+    }
+
+    pub fn speed(&self) -> f32 {
+        match self {
+            UiNode::Panel { speed, .. } => *speed,
+            UiNode::Container { speed, .. } => *speed,
+            UiNode::Widget { speed, .. } => *speed,
+        }
+    }
+
+    pub fn has_active_animation(&self) -> bool {
+        self.effect() != "none" && !self.effect().is_empty()
+    }
 }
 
 /// Extracted configuration representing a user-defined UI theme from a KDL document.
@@ -250,6 +277,18 @@ impl UiThemeConfig {
                                         }
                                         ("style", "background-type") => config.background_type = val_str,
                                         ("style", "background-url") => config.background_url = val_str,
+                                        ("style", "speed") => {
+                                            if let Ok(s) = val_str.parse::<f32>() {
+                                                config.background_speed = s;
+                                                config.animation_speed = s;
+                                            }
+                                        }
+                                        ("style", "animation-effect") => config.animation_effect = val_str,
+                                        ("style", "animation-speed") => {
+                                            if let Ok(s) = val_str.parse::<f32>() {
+                                                config.animation_speed = s;
+                                            }
+                                        }
                                         ("animation", "effect") => config.animation_effect = val_str,
                                         ("animation", "speed") => {
                                             if let Ok(s) = val_str.parse::<f32>() {
@@ -298,6 +337,33 @@ impl UiThemeConfig {
             &[]
         }
     }
+
+    /// Check if the theme or any of its active AST nodes require continuous repaints.
+    pub fn requires_continuous_repaint(&self, target_device: &str) -> bool {
+        if self.animation_effect != "none" && !self.animation_effect.is_empty() {
+            return true;
+        }
+        if self.background_type != "solid" && !self.background_type.is_empty() {
+            return true;
+        }
+        fn tree_has_animation(nodes: &[UiNode]) -> bool {
+            for node in nodes {
+                if node.has_active_animation() {
+                    return true;
+                }
+                match node {
+                    UiNode::Panel { children, .. } | UiNode::Container { children, .. } => {
+                        if tree_has_animation(children) {
+                            return true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            false
+        }
+        tree_has_animation(self.get_active_layout(target_device))
+    }
 }
 
 /// Recursively parse a KDL AST node into a `UiNode`.
@@ -318,6 +384,7 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
     let mut rounding = 0.0;
     let mut border_width = 0.0;
     let mut effect = "none".to_string();
+    let mut speed = 1.0;
 
     for entry in node.entries() {
         if let Some(key) = entry.name() {
@@ -369,7 +436,12 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
                         border_width = w;
                     }
                 }
-                "effect" => effect = val_str,
+                "effect" | "animation-effect" => effect = val_str,
+                "speed" | "animation-speed" => {
+                    if let Ok(f) = val_str.parse::<f32>() {
+                        speed = f;
+                    }
+                }
                 _ => {}
             }
         } else if let Some(s) = entry.value().as_string() {
@@ -390,10 +462,19 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
             if child_name == "animation" {
                 for entry in child_node.entries() {
                     if let Some(key) = entry.name() {
-                        if key.to_string() == "effect" {
-                            if let Some(s) = entry.value().as_string() {
-                                effect = s.to_string();
+                        let k = key.to_string();
+                        let v = match entry.value().as_string() {
+                            Some(s) => s.to_string(),
+                            None => entry.value().to_string(),
+                        };
+                        match k.as_str() {
+                            "effect" => effect = v,
+                            "speed" => {
+                                if let Ok(f) = v.parse::<f32>() {
+                                    speed = f;
+                                }
                             }
+                            _ => {}
                         }
                     }
                 }
@@ -405,10 +486,10 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
 
     match name.as_str() {
         "top-panel" | "left-panel" | "bottom-panel" | "right-panel" | "central-panel" => {
-            Some(UiNode::Panel { kind: name, id, size, fill, children })
+            Some(UiNode::Panel { kind: name, id, size, fill, children, effect, speed })
         }
         "row" | "column" | "box" | "scroll" => {
-            Some(UiNode::Container { kind: name, spacing, padding, children })
+            Some(UiNode::Container { kind: name, spacing, padding, children, effect, speed })
         }
         "heading" | "label" | "button" | "separator" | "spacer" | "menu-bar" | "catalog-view" | "theme-switcher" | "device-switcher" | "image" | "svg" => {
             Some(UiNode::Widget {
@@ -423,6 +504,7 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
                 rounding,
                 border_width,
                 effect,
+                speed,
             })
         }
         _ => None,
