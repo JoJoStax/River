@@ -15,15 +15,16 @@ plugin id="quantum-glass-suite" name="Quantum Glass Aurora" mode="hotplug" {
                     heading text="✨ QUANTUM // GLASS AURORA ✨" color="accent" size=22.0
                     spacer
                     device-switcher style="horizontal"
-                    theme-switcher style="horizontal"
                 }
             }
         }
-        bottom-panel id="glass-footer" height=76.0 fill="#060b1ecc" {
-            row align="center" spacing=24.0 {
+        left-panel id="glass-side-nav" size=260.0 fill="#060b1ede" {
+            column spacing=16.0 padding=20.0 {
+                heading text="✨ AURORA NAV ✨" color="accent" size=20.0
+                label text="[ MEDIA CATEGORIES ]" color="secondary" size=12.0
+                menu-bar id="category-nav" style="vertical" size=16.0
                 spacer
-                menu-bar id="category-nav" style="pills" size=24.0
-                spacer
+                theme-switcher style="vertical"
             }
         }
         central-panel id="glass-main" fill="#00000000" {

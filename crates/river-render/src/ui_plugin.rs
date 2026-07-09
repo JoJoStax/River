@@ -76,6 +76,8 @@ impl UiPluginManager {
         // On Android / ARM64, bake in default-android-style (Material UI) as the active theme!
         if is_mobile_device && is_android_style {
             self.active_plugin_id = "default-android-style".to_string();
+        } else if !is_mobile_device && plugin.id() == "quantum-glass-suite" && (is_currently_empty || self.active_plugin_id == "default-android-style" || self.active_plugin_id == "empty") {
+            self.active_plugin_id = "quantum-glass-suite".to_string();
         } else if is_currently_empty && is_new_default {
             self.active_plugin_id = plugin.id().to_string();
         } else if is_currently_empty {

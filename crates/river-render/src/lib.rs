@@ -1,5 +1,6 @@
 pub mod android;
 pub mod core_ui;
+pub mod data_exports;
 pub mod hotplug_ui;
 pub mod plugin_core;
 pub mod plugin_ui_core;

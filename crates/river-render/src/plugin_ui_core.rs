@@ -37,9 +37,10 @@ pub enum UiNode {
         speed: f32,
     },
     Widget {
-        kind: String, // "heading", "label", "button", "separator", "spacer", "menu-bar", "catalog-view", "theme-switcher", "device-switcher", "image", "svg"
+        kind: String, // "heading", "label", "button", "nav-item", "separator", "spacer", "menu-bar", "catalog-view", "theme-switcher", "device-switcher", "image", "svg"
         text: String,
         url: String,
+        action: String,
         color: String,
         size: f32,
         height: f32,
@@ -50,6 +51,39 @@ pub enum UiNode {
         effect: String,
         speed: f32,
     },
+    /// Generic responsive grid layout — replaces hardcoded catalog-view grids.
+    /// KDL plugins use this to create any grid arrangement with dynamic columns.
+    Grid {
+        id: String,
+        columns: usize,
+        spacing_x: f32,
+        spacing_y: f32,
+        min_cell_width: f32,
+        fill: egui::Color32,
+        rounding: f32,
+        border_width: f32,
+        children: Vec<UiNode>,
+        effect: String,
+        speed: f32,
+    },
+    /// Data-bound iteration node. Iterates over a data source and stamps out
+    /// the template children for each item, with per-item data bindings.
+    ForEach {
+        source: String,
+        item_var: String,
+        template: Vec<UiNode>,
+        effect: String,
+        speed: f32,
+    },
+    /// Conditional visibility node. Shows children only when a data binding
+    /// matches (or doesn't match) a specified value.
+    Condition {
+        source: String,
+        equals: String,
+        not_equals: String,
+        children: Vec<UiNode>,
+        else_children: Vec<UiNode>,
+    },
 }
 
 impl UiNode {
@@ -58,6 +92,9 @@ impl UiNode {
             UiNode::Panel { effect, .. } => effect,
             UiNode::Container { effect, .. } => effect,
             UiNode::Widget { effect, .. } => effect,
+            UiNode::Grid { effect, .. } => effect,
+            UiNode::ForEach { effect, .. } => effect,
+            UiNode::Condition { .. } => "none",
         }
     }
 
@@ -66,6 +103,9 @@ impl UiNode {
             UiNode::Panel { speed, .. } => *speed,
             UiNode::Container { speed, .. } => *speed,
             UiNode::Widget { speed, .. } => *speed,
+            UiNode::Grid { speed, .. } => *speed,
+            UiNode::ForEach { speed, .. } => *speed,
+            UiNode::Condition { .. } => 1.0,
         }
     }
 
@@ -352,8 +392,20 @@ impl UiThemeConfig {
                     return true;
                 }
                 match node {
-                    UiNode::Panel { children, .. } | UiNode::Container { children, .. } => {
+                    UiNode::Panel { children, .. }
+                    | UiNode::Container { children, .. }
+                    | UiNode::Grid { children, .. } => {
                         if tree_has_animation(children) {
+                            return true;
+                        }
+                    }
+                    UiNode::ForEach { template, .. } => {
+                        if tree_has_animation(template) {
+                            return true;
+                        }
+                    }
+                    UiNode::Condition { children, else_children, .. } => {
+                        if tree_has_animation(children) || tree_has_animation(else_children) {
                             return true;
                         }
                     }
@@ -377,6 +429,7 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
     let mut padding = 8.0;
     let mut text = String::new();
     let mut url = String::new();
+    let mut action = String::new();
     let mut color = "text".to_string();
     let mut font_size = 14.0;
     let mut style = "default".to_string();
@@ -385,6 +438,13 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
     let mut border_width = 0.0;
     let mut effect = "none".to_string();
     let mut speed = 1.0;
+    let mut source = String::new();
+    let mut item_var = "item".to_string();
+    let mut equals = String::new();
+    let mut not_equals = String::new();
+    let mut min_cell_width = 0.0f32;
+    let mut spacing_x = 0.0f32;
+    let mut spacing_y = 0.0f32;
 
     for entry in node.entries() {
         if let Some(key) = entry.name() {
@@ -407,6 +467,7 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
                     }
                 }
                 "url" | "src" => url = val_str,
+                "action" | "intent" | "on-click" => action = val_str,
                 "fill" => fill = parse_hex_color_alpha(&val_str, default_fill),
                 "spacing" => {
                     if let Ok(f) = val_str.parse::<f32>() {
@@ -440,6 +501,25 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
                 "speed" | "animation-speed" => {
                     if let Ok(f) = val_str.parse::<f32>() {
                         speed = f;
+                    }
+                }
+                "source" => source = val_str,
+                "item" | "item-var" => item_var = val_str,
+                "equals" => equals = val_str,
+                "not-equals" => not_equals = val_str,
+                "min-cell-width" => {
+                    if let Ok(f) = val_str.parse::<f32>() {
+                        min_cell_width = f;
+                    }
+                }
+                "spacing-x" => {
+                    if let Ok(f) = val_str.parse::<f32>() {
+                        spacing_x = f;
+                    }
+                }
+                "spacing-y" => {
+                    if let Ok(f) = val_str.parse::<f32>() {
+                        spacing_y = f;
                     }
                 }
                 _ => {}
@@ -491,11 +571,12 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
         "row" | "column" | "box" | "scroll" => {
             Some(UiNode::Container { kind: name, spacing, padding, children, effect, speed })
         }
-        "heading" | "label" | "button" | "separator" | "spacer" | "menu-bar" | "catalog-view" | "theme-switcher" | "device-switcher" | "image" | "svg" => {
+        "heading" | "label" | "button" | "nav-item" | "separator" | "spacer" | "menu-bar" | "catalog-view" | "theme-switcher" | "device-switcher" | "image" | "svg" => {
             Some(UiNode::Widget {
                 kind: name,
                 text,
                 url,
+                action,
                 color,
                 size: if size > 0.0 { size } else { font_size },
                 height,
@@ -507,7 +588,62 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
                 speed,
             })
         }
-        _ => None,
+        "grid" => {
+            let gsx = if spacing_x > 0.0 { spacing_x } else { spacing };
+            let gsy = if spacing_y > 0.0 { spacing_y } else { spacing };
+            let mcw = if min_cell_width > 0.0 { min_cell_width } else if size > 0.0 { size } else { 180.0 };
+            Some(UiNode::Grid {
+                id,
+                columns,
+                spacing_x: gsx,
+                spacing_y: gsy,
+                min_cell_width: mcw,
+                fill,
+                rounding,
+                border_width,
+                children,
+                effect,
+                speed,
+            })
+        }
+        "for-each" => {
+            let src = if source.is_empty() { text } else { source };
+            let ivar = if style != "default" && !style.is_empty() { style } else { item_var };
+            Some(UiNode::ForEach {
+                source: src,
+                item_var: ivar,
+                template: children,
+                effect,
+                speed,
+            })
+        }
+        "if-state" | "condition" => {
+            let src = if source.is_empty() { text } else { source };
+            let eq = if equals.is_empty() && !style.is_empty() && style != "default" { style } else { equals };
+            // Extract else-children from any child Container with kind="else"
+            let mut main_children = Vec::new();
+            let mut else_children = Vec::new();
+            for child in children {
+                if let UiNode::Container { ref kind, children: ref inner, .. } = child {
+                    if kind == "else" {
+                        else_children.extend(inner.clone());
+                        continue;
+                    }
+                }
+                main_children.push(child);
+            }
+            Some(UiNode::Condition {
+                source: src,
+                equals: eq,
+                not_equals,
+                children: main_children,
+                else_children,
+            })
+        }
+        // Any unknown tag name becomes a generic container — total plugin freedom!
+        _ => {
+            Some(UiNode::Container { kind: name, spacing, padding, children, effect, speed })
+        }
     }
 }
 
