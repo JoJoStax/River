@@ -1,0 +1,206 @@
+plugin id="nebula-void-suite" name="Nebula Void Horizon" mode="hotplug" {
+    style {
+        palette accent="#a124f5" secondary="#22a7f0" text="#e8ecf8" border="#a124f5aa" background="#080318"
+        typography family="proportional" header-size=28.0 body-size=15.0
+        spacing item-x=18.0 item-y=18.0 padding=24.0
+        background-type "stars"
+        fill "#a124f5"
+        secondary "#0b0626"
+        speed 1.5
+    }
+    layout target="desktop" {
+        top-panel id="nebula-header" height=70.0 fill="#0c0724ee" {
+            column spacing=10.0 padding=14.0 {
+                row align="center" spacing=24.0 {
+                    heading text="🪐 NEBULA // VOID-HORIZON v4.0" color="accent" size=24.0 effect="shimmer" speed=1.2
+                    spacer
+                    row spacing=12.0 {
+                        box fill="#140b36" padding=6.0 rounding=8.0 effect="pulse" speed=1.0 {
+                            label text="🌌 CORE: ONLINE" color="secondary" size=13.0
+                        }
+                    }
+                    spacer
+                    device-switcher style="horizontal"
+                }
+            }
+        }
+        left-panel id="nebula-sidebar" size=280.0 fill="#07031be8" {
+            column spacing=20.0 padding=22.0 {
+                heading text="🪐 VOID NAVIGATION" color="accent" size=20.0 effect="glow" speed=2.0
+                separator
+                label text="[ HORIZON CHANNELS ]" color="secondary" size=12.0
+                
+                for-each source="{categories}" item="cat" {
+                    box fill="#0f072ed0" padding=4.0 rounding=16.0 effect="shimmer" speed=1.8 {
+                        button text="{cat.icon}  {cat.name}" action="SelectCategory:{cat.id}" size=16.0 rounding=12.0 effect="pulse" speed=1.0
+                    }
+                    spacer size=6.0
+                }
+                
+                spacer
+                separator
+                label text="[ INTERFACE SYSTEM ]" color="secondary" size=12.0
+                theme-switcher style="vertical"
+            }
+        }
+        central-panel id="nebula-main" fill="#00000000" {
+            column spacing=20.0 padding=26.0 {
+                row align="center" spacing=16.0 {
+                    box fill="#0b0521cc" padding=10.0 rounding=12.0 effect="float" speed=1.0 {
+                        row spacing=8.0 {
+                            label text="✨ COSMOS TELEMETRY:" color="secondary" size=13.0
+                            label text="{active_category} SCANNING ACTIVE" color="text" size=13.0
+                        }
+                    }
+                }
+                
+                if-state source="{catalog_state}" equals="loading" {
+                    box fill="#0f072ecc" padding=30.0 rounding=20.0 effect="glow" speed=3.0 border-width=1.5 {
+                        column spacing=16.0 {
+                            row align="center" {
+                                label text="🌀" color="accent" size=36.0 effect="bounce" speed=2.5
+                                spacer size=12.0
+                                label text="Warping Through Deep Space Registry..." color="text" size=18.0
+                            }
+                        }
+                    }
+                }
+                
+                if-state source="{catalog_state}" equals="loaded" {
+                    for-each source="{catalogs}" item="catalog" {
+                        box fill="#0f072ecc" padding=12.0 rounding=14.0 effect="shimmer" speed=1.0 {
+                            row {
+                                label text="✦" color="secondary" size=18.0 effect="pulse" speed=2.0
+                                spacer size=8.0
+                                heading text="{catalog.name}" color="accent" size=22.0
+                            }
+                        }
+                        spacer size=12.0
+                        
+                        grid columns=3 min-cell-width=200.0 spacing-x=18.0 spacing-y=18.0 rounding=20.0 {
+                            for-each source="{catalog.items}" item="item" {
+                                box fill="#0c0522f0" rounding=20.0 padding=16.0 effect="glow" speed=2.0 border-width=1.5 {
+                                    column spacing=10.0 {
+                                        row {
+                                            label text="◈" color="accent" size=14.0 effect="pulse" speed=3.0
+                                            spacer size=6.0
+                                            label text="{item.title}" color="text" size=16.0
+                                        }
+                                        label text="GENRES: {item.genres}" color="secondary" size=11.0
+                                        row spacing=8.0 {
+                                            box fill="#140b36" padding=4.0 rounding=6.0 {
+                                                label text="⭐ {item.rating}" color="accent" size=11.0
+                                            }
+                                            box fill="#140b36" padding=4.0 rounding=6.0 {
+                                                label text="📅 {item.year}" color="text" size=11.0
+                                            }
+                                        }
+                                        button text="🌌 WARP TO STREAM" action="AddToLibrary:{item.id}" rounding=10.0 size=13.0 effect="pulse" speed=1.8
+                                    }
+                                }
+                            }
+                        }
+                        spacer size=24.0
+                    }
+                }
+            }
+        }
+    }
+    layout target="mobile" {
+        top-panel id="nebula-mobile-header" height=64.0 fill="#0c0724ee" {
+            column spacing=6.0 padding=12.0 {
+                row align="center" spacing=14.0 {
+                    heading text="🪐 NEBULA HORIZON" color="accent" size=18.0 effect="pulse" speed=1.2
+                    spacer
+                    device-switcher style="compact"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="nebula-mobile-footer" height=76.0 fill="#0c0724ee" {
+            row align="center" spacing=12.0 {
+                spacer
+                for-each source="{categories}" item="cat" {
+                    button text="{cat.icon}" action="SelectCategory:{cat.id}" size=20.0 rounding=20.0 effect="glow" speed=2.0
+                    spacer size=10.0
+                }
+                spacer
+            }
+        }
+        central-panel id="nebula-mobile-feed" fill="#00000000" {
+            column spacing=16.0 padding=16.0 {
+                if-state source="{catalog_state}" equals="loading" {
+                    row { label text="🌀 Searching Void..." color="accent" size=16.0 effect="pulse" speed=3.0 }
+                }
+                if-state source="{catalog_state}" equals="loaded" {
+                    for-each source="{catalogs}" item="catalog" {
+                        heading text="✦ {catalog.name}" color="accent" size=18.0
+                        grid columns=1 min-cell-width=220.0 spacing-y=16.0 {
+                            for-each source="{catalog.items}" item="item" {
+                                box fill="#0c0522f0" rounding=16.0 padding=14.0 effect="glow" speed=2.0 border-width=1.0 {
+                                    column spacing=8.0 {
+                                        row {
+                                            label text="◈" color="accent" size=12.0
+                                            spacer size=6.0
+                                            label text="{item.title}" color="text" size=15.0
+                                        }
+                                        label text="GENRES: {item.genres}" color="secondary" size=11.0
+                                        button text="🌌 WARP TO STREAM" action="AddToLibrary:{item.id}" rounding=8.0 size=12.0 effect="pulse" speed=1.8
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    layout target="tv" {
+        top-panel id="nebula-tv-header" height=90.0 fill="#0c0724ee" {
+            column spacing=12.0 padding=18.0 {
+                row align="center" spacing=28.0 {
+                    heading text="🪐 NEBULA HORIZON CINEMA" color="accent" size=30.0 effect="shimmer" speed=1.5
+                    spacer
+                    device-switcher style="horizontal"
+                    theme-switcher style="horizontal"
+                }
+            }
+        }
+        bottom-panel id="nebula-tv-footer" height=86.0 fill="#0c0724ee" {
+            row align="center" spacing=24.0 {
+                spacer
+                for-each source="{categories}" item="cat" {
+                    button text="◈ {cat.name} ◈" action="SelectCategory:{cat.id}" size=26.0 rounding=20.0 effect="glow" speed=2.5
+                    spacer size=24.0
+                }
+                spacer
+            }
+        }
+        central-panel id="nebula-tv-grid" fill="#00000000" {
+            column spacing=26.0 padding=32.0 {
+                if-state source="{catalog_state}" equals="loading" {
+                    row { label text="🌀 Accessing Cosmic Database..." color="accent" size=26.0 effect="pulse" speed=4.0 }
+                }
+                if-state source="{catalog_state}" equals="loaded" {
+                    for-each source="{catalogs}" item="catalog" {
+                        heading text="✦ {catalog.name}" color="accent" size=26.0 effect="glow" speed=1.5
+                        grid columns=4 min-cell-width=260.0 spacing-x=24.0 spacing-y=24.0 rounding=24.0 {
+                            for-each source="{catalog.items}" item="item" {
+                                box fill="#0c0522f0" rounding=24.0 padding=20.0 effect="glow" speed=2.0 border-width=2.0 {
+                                    column spacing=12.0 {
+                                        row {
+                                            label text="◈" color="accent" size=18.0 effect="pulse" speed=4.0
+                                            label text="{item.title}" color="text" size=20.0
+                                        }
+                                        label text="GENRES: {item.genres}" color="secondary" size=14.0
+                                        button text="🌌 WARP TO STREAM" action="AddToLibrary:{item.id}" rounding=12.0 size=16.0 effect="pulse" speed=2.0
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

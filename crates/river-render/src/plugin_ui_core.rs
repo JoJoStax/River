@@ -180,6 +180,7 @@ pub struct UiThemeConfig {
     pub border_width: f32,
     pub border_color: egui::Color32,
     pub fill_color: egui::Color32,
+    pub background_color: egui::Color32,
     pub background_type: String, // "solid", "gradient", "grid", "matrix", "stars", "waves", "image"
     pub background_url: String,
     pub background_color_2: egui::Color32,
@@ -195,6 +196,8 @@ pub struct UiThemeConfig {
     pub layouts: HashMap<String, Vec<UiNode>>,
     /// Named custom animation definitions from `animations { define-animation ... }`
     pub animation_defs: HashMap<String, AnimationDef>,
+    /// Nodes to render on the background layer
+    pub background_nodes: Vec<UiNode>,
 }
 
 impl UiThemeConfig {
@@ -218,6 +221,7 @@ impl UiThemeConfig {
             border_width: 0.0,
             border_color: egui::Color32::TRANSPARENT,
             fill_color: egui::Color32::from_rgb(30, 30, 30),
+            background_color: egui::Color32::from_rgb(10, 10, 15),
             background_type: "solid".to_string(),
             background_url: String::new(),
             background_color_2: egui::Color32::from_rgb(10, 15, 30),
@@ -231,6 +235,7 @@ impl UiThemeConfig {
             columns: 3,
             layouts: HashMap::new(),
             animation_defs: HashMap::new(),
+            background_nodes: Vec::new(),
         };
 
         for node in doc.nodes() {
@@ -286,7 +291,7 @@ impl UiThemeConfig {
                                     match key_str.as_str() {
                                         "type" => config.background_type = val_str,
                                         "url" | "src" => config.background_url = val_str,
-                                        "from" | "color" => config.fill_color = parse_hex_color_alpha(&val_str, config.fill_color),
+                                        "from" | "color" => config.background_color = parse_hex_color_alpha(&val_str, config.background_color),
                                         "to" | "secondary" => config.background_color_2 = parse_hex_color_alpha(&val_str, config.background_color_2),
                                         "speed" => {
                                             if let Ok(s) = val_str.parse::<f32>() {
@@ -297,6 +302,16 @@ impl UiThemeConfig {
                                     }
                                 }
                             }
+                            
+                            let mut bg_nodes = Vec::new();
+                            if let Some(bg_children) = child.children() {
+                                for ast_node in bg_children.nodes() {
+                                    if let Some(ui_node) = parse_ast_node(ast_node, config.fill_color) {
+                                        bg_nodes.push(ui_node);
+                                    }
+                                }
+                            }
+                            config.background_nodes = bg_nodes;
                         } else if child_name == "animations" {
                             if let Some(anim_children) = child.children() {
                                 for anim_node in anim_children.nodes() {
@@ -360,6 +375,9 @@ impl UiThemeConfig {
                                         ("palette", "border") => {
                                             config.border_color = parse_hex_color_alpha(&val_str, config.border_color);
                                         }
+                                        ("palette", "background") => {
+                                            config.background_color = parse_hex_color_alpha(&val_str, config.background_color);
+                                        }
                                         ("style", "rounding") => {
                                             if let Ok(r) = val_str.parse::<f32>() {
                                                 config.rounding = r;
@@ -403,6 +421,105 @@ impl UiThemeConfig {
                                             }
                                         }
                                         _ => {}
+                                    }
+                                }
+                            }
+
+                            if child_name == "style" {
+                                if let Some(style_children) = child.children() {
+                                    for style_child in style_children.nodes() {
+                                        let sub_name = style_child.name().to_string();
+                                        for entry in style_child.entries() {
+                                            if let Some(key) = entry.name() {
+                                                let key_str = key.to_string();
+                                                let val_str = match entry.value().as_string() {
+                                                    Some(s) => s.to_string(),
+                                                    None => entry.value().to_string(),
+                                                };
+                                                match (sub_name.as_str(), key_str.as_str()) {
+                                                    ("palette", "accent") => {
+                                                        config.accent_color = parse_hex_color_alpha(&val_str, config.accent_color);
+                                                    }
+                                                    ("palette", "secondary") => {
+                                                        config.secondary_color = parse_hex_color_alpha(&val_str, config.secondary_color);
+                                                    }
+                                                    ("palette", "text") => {
+                                                        config.text_color = parse_hex_color_alpha(&val_str, config.text_color);
+                                                    }
+                                                    ("palette", "border") => {
+                                                        config.border_color = parse_hex_color_alpha(&val_str, config.border_color);
+                                                    }
+                                                    ("palette", "background") => {
+                                                        config.background_color = parse_hex_color_alpha(&val_str, config.background_color);
+                                                    }
+                                                    ("typography", "family") => config.font_family = val_str.clone(),
+                                                    ("typography", "header-size") => {
+                                                        if let Ok(s) = val_str.parse::<f32>() {
+                                                            config.header_size = s;
+                                                        }
+                                                    }
+                                                    ("typography", "body-size") => {
+                                                        if let Ok(s) = val_str.parse::<f32>() {
+                                                            config.body_size = s;
+                                                        }
+                                                    }
+                                                    ("spacing", "item-x") => {
+                                                        if let Ok(s) = val_str.parse::<f32>() {
+                                                            config.spacing_x = s;
+                                                        }
+                                                    }
+                                                    ("spacing", "item-y") => {
+                                                        if let Ok(s) = val_str.parse::<f32>() {
+                                                            config.spacing_y = s;
+                                                        }
+                                                    }
+                                                    ("spacing", "padding") => {
+                                                        if let Ok(s) = val_str.parse::<f32>() {
+                                                            config.rounding = s;
+                                                        }
+                                                    }
+                                                    _ => {}
+                                                }
+                                            }
+                                        }
+
+                                        if let Some(entry) = style_child.entries().get(0) {
+                                            let val = entry.value();
+                                            let val_str = match val.as_string() {
+                                                Some(s) => s.to_string(),
+                                                None => val.to_string(),
+                                            };
+                                            match sub_name.as_str() {
+                                                "background-type" => config.background_type = val_str,
+                                                "background-url" => config.background_url = val_str,
+                                                "fill" => config.fill_color = parse_hex_color_alpha(&val_str, config.fill_color),
+                                                "background" => config.background_color = parse_hex_color_alpha(&val_str, config.background_color),
+                                                "secondary" => config.background_color_2 = parse_hex_color_alpha(&val_str, config.background_color_2),
+                                                "speed" => {
+                                                    if let Ok(s) = val_str.parse::<f32>() {
+                                                        config.background_speed = s;
+                                                        config.animation_speed = s;
+                                                    }
+                                                }
+                                                "rounding" => {
+                                                    if let Ok(s) = val_str.parse::<f32>() {
+                                                        config.rounding = s;
+                                                    }
+                                                }
+                                                "border-width" => {
+                                                    if let Ok(s) = val_str.parse::<f32>() {
+                                                        config.border_width = s;
+                                                    }
+                                                }
+                                                "animation-effect" => config.animation_effect = val_str,
+                                                "animation-speed" => {
+                                                    if let Ok(s) = val_str.parse::<f32>() {
+                                                        config.animation_speed = s;
+                                                    }
+                                                }
+                                                _ => {}
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -472,7 +589,7 @@ impl UiThemeConfig {
             }
             false
         }
-        tree_has_animation(self.get_active_layout(target_device))
+        tree_has_animation(self.get_active_layout(target_device)) || tree_has_animation(&self.background_nodes)
     }
 }
 

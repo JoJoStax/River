@@ -73,7 +73,32 @@ pub fn render_theme_layout(
     // Build data context from current app state — the bridge between domain and UI!
     let data_ctx = crate::data_exports::build_data_context(state, ui_manager, config);
 
-    draw_complex_background(ctx, config, time);
+    if config.background_nodes.is_empty() {
+        draw_complex_background(ctx, config, time);
+    } else {
+        let rect = ctx.screen_rect();
+        let painter = ctx.layer_painter(egui::LayerId::background());
+        painter.rect_filled(rect, 0.0, config.background_color);
+
+        egui::Area::new(egui::Id::new("custom_background_layer"))
+            .order(egui::Order::Background)
+            .fixed_pos(rect.min)
+            .show(ctx, |ui| {
+                ui.set_min_size(rect.size());
+                render_ui_nodes(
+                    ui,
+                    &config.background_nodes,
+                    state,
+                    store,
+                    rt,
+                    config,
+                    time,
+                    scale,
+                    ui_manager,
+                    &data_ctx,
+                );
+            });
+    }
 
     render_ast_panels(
         active_nodes,

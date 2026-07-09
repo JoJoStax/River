@@ -12,7 +12,7 @@ plugin id="quantum-glass-suite" name="Quantum Glass Aurora" mode="hotplug" {
         top-panel id="glass-header" height=68.0 fill="#060b1ecc" {
             column spacing=8.0 padding=14.0 {
                 row align="center" spacing=20.0 {
-                    heading text="✨ QUANTUM // GLASS AURORA ✨" color="accent" size=22.0
+                    heading text="✨ QUANTUM // GLASS AURORA ✨" color="accent" size=22.0 effect="pulse" speed=1.5
                     spacer
                     device-switcher style="horizontal"
                 }
@@ -20,24 +20,45 @@ plugin id="quantum-glass-suite" name="Quantum Glass Aurora" mode="hotplug" {
         }
         left-panel id="glass-side-nav" size=260.0 fill="#060b1ede" {
             column spacing=16.0 padding=20.0 {
-                heading text="✨ AURORA NAV ✨" color="accent" size=20.0
+                heading text="✨ AURORA NAV ✨" color="accent" size=20.0 effect="glow" speed=2.0
                 label text="[ MEDIA CATEGORIES ]" color="secondary" size=12.0
-                menu-bar id="category-nav" style="vertical" size=16.0
-                spacer
-                dropdown label="🔌 Suite: {active}" id="glass-theme-drop" color="accent" style="menu" {
-                    button label="📱 Default Android Style [Tier 1]" action="SwitchTheme:default-android-style" size=13.0 rounding=6.0 color="text"
-                    button label="✨ Quantum Glass Aurora [Tier 1]" action="SwitchTheme:quantum-glass-suite" size=13.0 rounding=6.0 color="text"
-                    button label="⚡ HyperPulse Cyber Matrix [Tier 1]" action="SwitchTheme:hyperpulse-cyber-suite" size=13.0 rounding=6.0 color="text"
+                for-each source="{categories}" item="cat" {
+                    button text="{cat.icon}   {cat.name}" action="SelectCategory:{cat.id}" size=16.0 rounding=14.0 effect="glow" speed=2.5
+                    spacer size=8.0
                 }
+                spacer
+                label text="[ SUITE SELECTOR ]" color="secondary" size=12.0
+                theme-switcher style="vertical"
             }
         }
         central-panel id="glass-main" fill="#00000000" {
             column spacing=18.0 padding=24.0 {
                 row align="center" spacing=12.0 {
-                    label text="[ DYNAMIC STREAM ENGINE ACTIVE ]" color="secondary" size=14.0
+                    label text="[ DYNAMIC STREAM ENGINE ACTIVE ]" color="secondary" size=14.0 effect="shimmer" speed=3.0
                 }
-                catalog-view style="live_tiles" columns=3 rounding=22.0 border-width=1.5 {
-                    animation effect="pulse" speed=2.5
+                if-state source="{catalog_state}" equals="loading" {
+                    row { label text="⏳ Loading Media Network..." color="accent" size=16.0 effect="pulse" speed=4.0 }
+                }
+                if-state source="{catalog_state}" equals="loaded" {
+                    for-each source="{catalogs}" item="catalog" {
+                        heading text="// {catalog.name}" color="accent" size=22.0 effect="glow" speed=1.5
+                        spacer size=12.0
+                        grid columns=3 min-cell-width=190.0 spacing-x=16.0 spacing-y=16.0 rounding=22.0 {
+                            for-each source="{catalog.items}" item="item" {
+                                box fill="#1a1a2ee0" rounding=22.0 padding=14.0 effect="glow" speed=2.5 border-width=1.5 {
+                                    column spacing=8.0 {
+                                        row {
+                                            label text="►" color="accent" size=12.0 effect="pulse" speed=4.0
+                                            label text="{item.title}" color="text" size=16.0
+                                        }
+                                        label text="{item.year} • {item.genres}" color="secondary" size=12.0
+                                        button text="⚡ LINK: {item.id}" action="AddToLibrary:{item.id}" rounding=8.0 size=12.0 effect="pulse" speed=2.0
+                                    }
+                                }
+                            }
+                        }
+                        spacer size=20.0
+                    }
                 }
             }
         }
@@ -46,28 +67,46 @@ plugin id="quantum-glass-suite" name="Quantum Glass Aurora" mode="hotplug" {
         top-panel id="glass-mobile-header" height=64.0 fill="#060b1ecc" {
             column spacing=6.0 padding=12.0 {
                 row align="center" spacing=14.0 {
-                    heading text="✨ QUANTUM GLASS ✨" color="accent" size=18.0
+                    heading text="✨ QUANTUM GLASS ✨" color="accent" size=18.0 effect="pulse" speed=1.5
                     spacer
                     device-switcher style="compact"
-                    dropdown label="🎨 {active}" id="glass-theme-drop-mobile" color="accent" style="menu" {
-                        button label="📱 Default Android Style [Tier 1]" action="SwitchTheme:default-android-style" size=13.0 rounding=6.0 color="text"
-                        button label="✨ Quantum Glass Aurora [Tier 1]" action="SwitchTheme:quantum-glass-suite" size=13.0 rounding=6.0 color="text"
-                        button label="⚡ HyperPulse Cyber Matrix [Tier 1]" action="SwitchTheme:hyperpulse-cyber-suite" size=13.0 rounding=6.0 color="text"
-                    }
+                    theme-switcher style="horizontal"
                 }
             }
         }
         bottom-panel id="glass-mobile-footer" height=74.0 fill="#060b1ecc" {
             row align="center" spacing=16.0 {
                 spacer
-                menu-bar id="category-nav" style="pills" size=22.0
+                for-each source="{categories}" item="cat" {
+                    button text="{cat.icon}" action="SelectCategory:{cat.id}" size=22.0 rounding=24.0 effect="glow" speed=2.5
+                    spacer size=12.0
+                }
                 spacer
             }
         }
         central-panel id="glass-mobile-feed" fill="#00000000" {
             column spacing=16.0 padding=16.0 {
-                catalog-view style="live_tiles" columns=1 rounding=22.0 border-width=1.5 {
-                    animation effect="pulse" speed=2.5
+                if-state source="{catalog_state}" equals="loading" {
+                    row { label text="⏳ Loading..." color="accent" size=16.0 effect="pulse" speed=4.0 }
+                }
+                if-state source="{catalog_state}" equals="loaded" {
+                    for-each source="{catalogs}" item="catalog" {
+                        heading text="// {catalog.name}" color="accent" size=20.0 effect="glow" speed=1.5
+                        grid columns=1 min-cell-width=200.0 spacing-y=16.0 {
+                            for-each source="{catalog.items}" item="item" {
+                                box fill="#1a1a2ee0" rounding=22.0 padding=14.0 effect="glow" speed=2.5 border-width=1.5 {
+                                    column spacing=8.0 {
+                                        row {
+                                            label text="►" color="accent" size=12.0 effect="pulse" speed=4.0
+                                            label text="{item.title}" color="text" size=16.0
+                                        }
+                                        label text="{item.year} • {item.genres}" color="secondary" size=12.0
+                                        button text="⚡ LINK" action="AddToLibrary:{item.id}" rounding=8.0 size=12.0 effect="pulse" speed=2.0
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -76,28 +115,46 @@ plugin id="quantum-glass-suite" name="Quantum Glass Aurora" mode="hotplug" {
         top-panel id="glass-tv-header" height=86.0 fill="#060b1ecc" {
             column spacing=10.0 padding=18.0 {
                 row align="center" spacing=24.0 {
-                    heading text="✨ QUANTUM CINEMA AURORA ✨" color="accent" size=28.0
+                    heading text="✨ QUANTUM CINEMA AURORA ✨" color="accent" size=28.0 effect="pulse" speed=1.5
                     spacer
                     device-switcher style="horizontal"
-                    dropdown label="🔌 Suite: {active}" id="glass-theme-drop-tv" color="accent" style="menu" {
-                        button label="📱 Default Android Style [Tier 1]" action="SwitchTheme:default-android-style" size=14.0 rounding=6.0 color="text"
-                        button label="✨ Quantum Glass Aurora [Tier 1]" action="SwitchTheme:quantum-glass-suite" size=14.0 rounding=6.0 color="text"
-                        button label="⚡ HyperPulse Cyber Matrix [Tier 1]" action="SwitchTheme:hyperpulse-cyber-suite" size=14.0 rounding=6.0 color="text"
-                    }
+                    theme-switcher style="horizontal"
                 }
             }
         }
         bottom-panel id="glass-tv-footer" height=80.0 fill="#060b1ecc" {
             row align="center" spacing=28.0 {
                 spacer
-                menu-bar id="category-nav" style="pills" size=28.0
+                for-each source="{categories}" item="cat" {
+                    button text="• {cat.name} •" action="SelectCategory:{cat.id}" size=28.0 rounding=24.0 effect="glow" speed=2.5
+                    spacer size=24.0
+                }
                 spacer
             }
         }
         central-panel id="glass-tv-grid" fill="#00000000" {
             column spacing=24.0 padding=30.0 {
-                catalog-view style="live_tiles" columns=4 rounding=24.0 border-width=2.0 {
-                    animation effect="pulse" speed=2.5
+                if-state source="{catalog_state}" equals="loading" {
+                    row { label text="⏳ Loading TV Grid..." color="accent" size=24.0 effect="pulse" speed=4.0 }
+                }
+                if-state source="{catalog_state}" equals="loaded" {
+                    for-each source="{catalogs}" item="catalog" {
+                        heading text="// {catalog.name}" color="accent" size=26.0 effect="glow" speed=1.5
+                        grid columns=4 min-cell-width=240.0 spacing-x=24.0 spacing-y=24.0 rounding=24.0 {
+                            for-each source="{catalog.items}" item="item" {
+                                box fill="#1a1a2ee0" rounding=24.0 padding=18.0 effect="glow" speed=2.5 border-width=2.0 {
+                                    column spacing=12.0 {
+                                        row {
+                                            label text="►" color="accent" size=16.0 effect="pulse" speed=4.0
+                                            label text="{item.title}" color="text" size=20.0
+                                        }
+                                        label text="{item.year} • {item.genres}" color="secondary" size=16.0
+                                        button text="⚡ LINK" action="AddToLibrary:{item.id}" rounding=12.0 size=16.0 effect="pulse" speed=2.0
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

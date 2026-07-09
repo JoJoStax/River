@@ -1,7 +1,7 @@
 use crate::plugin_ui_core::UiThemeConfig;
 use eframe::egui;
 
-/// Draws complex, dynamic backgrounds (gradients, grids, matrix rain, twinkling stars, SVG/images)
+/// Draws complex, dynamic backgrounds (gradients, grids, matrix rain, twinkling stars, SVG/images, html embedded backgrounds, etc.) based on the provided on users KDL
 pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time: f64) {
     if config.background_type == "solid" || config.background_type.is_empty() {
         return;
@@ -20,7 +20,7 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
                 let base_t = i as f32 / (steps - 1) as f32;
                 let wave = ((time * speed as f64 + base_t as f64 * std::f64::consts::PI).sin() * 0.2 + 0.5) as f32;
                 let t = (base_t * 0.7 + wave * 0.3).clamp(0.0, 1.0);
-                let col = lerp_color(config.fill_color, config.background_color_2, t);
+                let col = lerp_color(config.background_color, config.background_color_2, t);
                 let r = egui::Rect::from_min_size(
                     egui::pos2(rect.min.x, rect.min.y + i as f32 * step_h),
                     egui::vec2(rect.width(), step_h + 1.0),
@@ -28,8 +28,9 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
                 painter.rect_filled(r, 0.0, col);
             }
         }
+        // Will be rewritten to use a more efficient complex dynamic framework in the future, but for now this is a simple implementation of a easy effect backgrounds.
         "grid" => {
-            painter.rect_filled(rect, 0.0, config.fill_color);
+            painter.rect_filled(rect, 0.0, config.background_color);
             let grid_size = 36.0;
             let offset_x = (time as f32 * speed * 15.0) % grid_size;
             let offset_y = (time as f32 * speed * 25.0) % grid_size;
@@ -52,7 +53,7 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
             }
         }
         "waves" => {
-            painter.rect_filled(rect, 0.0, config.fill_color);
+            painter.rect_filled(rect, 0.0, config.background_color);
             let num_waves = 5;
             for w in 0..num_waves {
                 let wave_speed = speed * (1.0 + w as f32 * 0.3);
@@ -73,7 +74,7 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
             }
         }
         "matrix" => {
-            painter.rect_filled(rect, 0.0, config.fill_color);
+            painter.rect_filled(rect, 0.0, config.background_color);
             let num_drops = (rect.width() / 25.0) as usize;
             for i in 0..num_drops {
                 let x = rect.min.x + i as f32 * 25.0 + 10.0;
@@ -87,7 +88,7 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
             }
         }
         "stars" => {
-            painter.rect_filled(rect, 0.0, config.fill_color);
+            painter.rect_filled(rect, 0.0, config.background_color);
             for i in 0..60 {
                 let x = rect.min.x + ((i * 313) % (rect.width() as usize + 1)) as f32;
                 let y = rect.min.y + ((i * 701) % (rect.height() as usize + 1)) as f32;
@@ -98,7 +99,7 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
             }
         }
         "image" | "svg" => {
-            painter.rect_filled(rect, 0.0, config.fill_color);
+            painter.rect_filled(rect, 0.0, config.background_color);
             if !config.background_url.is_empty() {
                 egui::Area::new(egui::Id::new("bg_image_area"))
                     .order(egui::Order::Background)
@@ -111,7 +112,7 @@ pub fn draw_complex_background(ctx: &egui::Context, config: &UiThemeConfig, time
             }
         }
         _ => {
-            painter.rect_filled(rect, 0.0, config.fill_color);
+            painter.rect_filled(rect, 0.0, config.background_color);
         }
     }
 }
