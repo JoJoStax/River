@@ -16,6 +16,31 @@ pub enum UiExecutionMode {
     CoreCompiled,
 }
 
+/// A single keyframe in a custom animation timeline.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnimationKeyframe {
+    pub at: f32,  // 0.0 to 1.0 normalized time
+    pub properties: HashMap<String, AnimPropertyValue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AnimPropertyValue {
+    Float(f32),
+    Color(egui::Color32),
+    StringVal(String),
+}
+
+/// A complete animation definition.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnimationDef {
+    pub id: String,
+    pub keyframes: Vec<AnimationKeyframe>,
+    pub duration: f32,      // seconds
+    pub easing: String,     // "linear", "ease-in", "ease-out", "ease-in-out", "sine", "bounce", "elastic"
+    pub loop_mode: bool,    // true = repeat forever
+    pub ping_pong: bool,    // true = reverse on loop
+}
+
 /// A recursive AST Node representing any UI building block in River's DOM engine.
 #[derive(Debug, Clone, PartialEq)]
 pub enum UiNode {
@@ -27,14 +52,20 @@ pub enum UiNode {
         children: Vec<UiNode>,
         effect: String,
         speed: f32,
+        animations: Vec<AnimationDef>,
     },
     Container {
-        kind: String, // "row", "column", "box", "scroll"
+        kind: String, // "row", "column", "box", "scroll", "dropdown", "combo-box"
+        id: String,
+        text: String,
+        color: String,
+        style: String,
         spacing: f32,
         padding: f32,
         children: Vec<UiNode>,
         effect: String,
         speed: f32,
+        animations: Vec<AnimationDef>,
     },
     Widget {
         kind: String, // "heading", "label", "button", "nav-item", "separator", "spacer", "menu-bar", "catalog-view", "theme-switcher", "device-switcher", "image", "svg"
@@ -50,6 +81,7 @@ pub enum UiNode {
         border_width: f32,
         effect: String,
         speed: f32,
+        animations: Vec<AnimationDef>,
     },
     /// Generic responsive grid layout — replaces hardcoded catalog-view grids.
     /// KDL plugins use this to create any grid arrangement with dynamic columns.
@@ -65,6 +97,7 @@ pub enum UiNode {
         children: Vec<UiNode>,
         effect: String,
         speed: f32,
+        animations: Vec<AnimationDef>,
     },
     /// Data-bound iteration node. Iterates over a data source and stamps out
     /// the template children for each item, with per-item data bindings.
@@ -74,6 +107,7 @@ pub enum UiNode {
         template: Vec<UiNode>,
         effect: String,
         speed: f32,
+        animations: Vec<AnimationDef>,
     },
     /// Conditional visibility node. Shows children only when a data binding
     /// matches (or doesn't match) a specified value.
@@ -109,8 +143,19 @@ impl UiNode {
         }
     }
 
+    pub fn animations(&self) -> &[AnimationDef] {
+        match self {
+            UiNode::Panel { animations, .. } => animations,
+            UiNode::Container { animations, .. } => animations,
+            UiNode::Widget { animations, .. } => animations,
+            UiNode::Grid { animations, .. } => animations,
+            UiNode::ForEach { animations, .. } => animations,
+            UiNode::Condition { .. } => &[],
+        }
+    }
+
     pub fn has_active_animation(&self) -> bool {
-        self.effect() != "none" && !self.effect().is_empty()
+        (self.effect() != "none" && !self.effect().is_empty()) || !self.animations().is_empty()
     }
 }
 
@@ -148,6 +193,8 @@ pub struct UiThemeConfig {
     pub columns: usize,
     /// Multi-Device AST Layout Trees mapped by target ("desktop", "mobile", "tv")!
     pub layouts: HashMap<String, Vec<UiNode>>,
+    /// Named custom animation definitions from `animations { define-animation ... }`
+    pub animation_defs: HashMap<String, AnimationDef>,
 }
 
 impl UiThemeConfig {
@@ -183,6 +230,7 @@ impl UiThemeConfig {
             layout_mode: "grid".to_string(),
             columns: 3,
             layouts: HashMap::new(),
+            animation_defs: HashMap::new(),
         };
 
         for node in doc.nodes() {
@@ -246,6 +294,16 @@ impl UiThemeConfig {
                                             }
                                         }
                                         _ => {}
+                                    }
+                                }
+                            }
+                        } else if child_name == "animations" {
+                            if let Some(anim_children) = child.children() {
+                                for anim_node in anim_children.nodes() {
+                                    if anim_node.name().to_string() == "define-animation" {
+                                        if let Some(def) = parse_animation_def(anim_node, config.fill_color) {
+                                            config.animation_defs.insert(def.id.clone(), def);
+                                        }
                                     }
                                 }
                             }
@@ -536,10 +594,11 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
     }
 
     let mut children = Vec::new();
+    let mut animations = Vec::new();
     if let Some(child_doc) = node.children() {
         for child_node in child_doc.nodes() {
             let child_name = child_node.name().to_string();
-            if child_name == "animation" {
+            if child_name == "animation" && child_node.entries().iter().any(|e| e.name().map(|n| n.to_string()).as_deref() == Some("effect")) {
                 for entry in child_node.entries() {
                     if let Some(key) = entry.name() {
                         let k = key.to_string();
@@ -558,6 +617,10 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
                         }
                     }
                 }
+            } else if child_name == "animate" || (child_name == "animation" && child_node.children().is_some()) {
+                if let Some(def) = parse_inline_animation(child_node, default_fill) {
+                    animations.push(def);
+                }
             } else if let Some(ui_child) = parse_ast_node(child_node, default_fill) {
                 children.push(ui_child);
             }
@@ -566,10 +629,10 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
 
     match name.as_str() {
         "top-panel" | "left-panel" | "bottom-panel" | "right-panel" | "central-panel" => {
-            Some(UiNode::Panel { kind: name, id, size, fill, children, effect, speed })
+            Some(UiNode::Panel { kind: name, id, size, fill, children, effect, speed, animations })
         }
-        "row" | "column" | "box" | "scroll" => {
-            Some(UiNode::Container { kind: name, spacing, padding, children, effect, speed })
+        "row" | "column" | "box" | "scroll" | "dropdown" | "combo-box" | "menu" => {
+            Some(UiNode::Container { kind: name, id, text, color, style, spacing, padding, children, effect, speed, animations })
         }
         "heading" | "label" | "button" | "nav-item" | "separator" | "spacer" | "menu-bar" | "catalog-view" | "theme-switcher" | "device-switcher" | "image" | "svg" => {
             Some(UiNode::Widget {
@@ -586,6 +649,7 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
                 border_width,
                 effect,
                 speed,
+                animations,
             })
         }
         "grid" => {
@@ -604,6 +668,7 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
                 children,
                 effect,
                 speed,
+                animations,
             })
         }
         "for-each" => {
@@ -615,6 +680,7 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
                 template: children,
                 effect,
                 speed,
+                animations,
             })
         }
         "if-state" | "condition" => {
@@ -642,12 +708,12 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
         }
         // Any unknown tag name becomes a generic container — total plugin freedom!
         _ => {
-            Some(UiNode::Container { kind: name, spacing, padding, children, effect, speed })
+            Some(UiNode::Container { kind: name, id, text, color, style, spacing, padding, children, effect, speed, animations })
         }
     }
 }
 
-fn parse_hex_color_alpha(hex: &str, default: egui::Color32) -> egui::Color32 {
+pub fn parse_hex_color_alpha(hex: &str, default: egui::Color32) -> egui::Color32 {
     let hex = hex.trim_start_matches('#');
     if hex.len() == 8 {
         if let (Ok(r), Ok(g), Ok(b), Ok(a)) = (
@@ -841,6 +907,175 @@ impl UiRenderer for DeclarativeUiPlugin {
                 if let Some(compiled_layout) = &self.compiled {
                     compiled_layout.render_compiled_window(ctx, state, store, rt, ui_manager);
                 }
+            }
+        }
+    }
+}
+
+pub fn parse_animation_def(node: &KdlNode, default_color: egui::Color32) -> Option<AnimationDef> {
+    let mut id = String::new();
+    let mut duration = 1.0;
+    let mut easing = "linear".to_string();
+    let mut loop_mode = false;
+    let mut ping_pong = false;
+
+    for entry in node.entries() {
+        if let Some(key) = entry.name() {
+            let k = key.to_string();
+            let v = match entry.value().as_string() {
+                Some(s) => s.to_string(),
+                None => entry.value().to_string(),
+            };
+            match k.as_str() {
+                "id" => id = v,
+                "duration" => {
+                    if let Ok(f) = v.parse::<f32>() {
+                        duration = f;
+                    }
+                }
+                "easing" => easing = v,
+                "loop" | "loop-mode" => loop_mode = v == "true" || v == "1",
+                "ping-pong" => ping_pong = v == "true" || v == "1",
+                _ => {}
+            }
+        } else if let Some(s) = entry.value().as_string() {
+            if id.is_empty() {
+                id = s.to_string();
+            }
+        }
+    }
+
+    if id.is_empty() {
+        return None;
+    }
+
+    let mut keyframes = Vec::new();
+    if let Some(children) = node.children() {
+        for child in children.nodes() {
+            if child.name().to_string() == "keyframe" {
+                let mut at = 0.0f32;
+                let mut properties = HashMap::new();
+                for entry in child.entries() {
+                    if let Some(key) = entry.name() {
+                        let prop_name = key.to_string();
+                        let v_str = match entry.value().as_string() {
+                            Some(s) => s.to_string(),
+                            None => entry.value().to_string(),
+                        };
+                        if prop_name == "at" {
+                            if let Ok(f) = v_str.parse::<f32>() {
+                                at = f.clamp(0.0, 1.0);
+                            }
+                        } else if let Some(val) = parse_anim_property_val(&prop_name, &v_str, default_color) {
+                            properties.insert(prop_name, val);
+                        }
+                    }
+                }
+                if !properties.is_empty() {
+                    keyframes.push(AnimationKeyframe { at, properties });
+                }
+            }
+        }
+    }
+    keyframes.sort_by(|a, b| a.at.partial_cmp(&b.at).unwrap_or(std::cmp::Ordering::Equal));
+
+    Some(AnimationDef {
+        id,
+        keyframes,
+        duration,
+        easing,
+        loop_mode,
+        ping_pong,
+    })
+}
+
+pub fn parse_inline_animation(node: &KdlNode, default_color: egui::Color32) -> Option<AnimationDef> {
+    if node.children().is_some() {
+        return parse_animation_def(node, default_color);
+    }
+
+    let mut prop = String::new();
+    let mut from_val = String::new();
+    let mut to_val = String::new();
+    let mut duration = 1.0f32;
+    let mut easing = "linear".to_string();
+    let mut loop_mode = false;
+    let mut ping_pong = false;
+
+    for entry in node.entries() {
+        if let Some(key) = entry.name() {
+            let k = key.to_string();
+            let v = match entry.value().as_string() {
+                Some(s) => s.to_string(),
+                None => entry.value().to_string(),
+            };
+            match k.as_str() {
+                "property" => prop = v,
+                "from" => from_val = v,
+                "to" => to_val = v,
+                "duration" => {
+                    if let Ok(f) = v.parse::<f32>() {
+                        duration = f;
+                    }
+                }
+                "easing" => easing = v,
+                "loop" | "loop-mode" => loop_mode = v == "true" || v == "1",
+                "ping-pong" => ping_pong = v == "true" || v == "1",
+                _ => {}
+            }
+        }
+    }
+
+    if !prop.is_empty() && !from_val.is_empty() && !to_val.is_empty() {
+        let mut keyframes = Vec::new();
+        if let Some(p_from) = parse_anim_property_val(&prop, &from_val, default_color) {
+            let mut props0 = HashMap::new();
+            props0.insert(prop.clone(), p_from);
+            keyframes.push(AnimationKeyframe { at: 0.0, properties: props0 });
+        }
+        if let Some(p_to) = parse_anim_property_val(&prop, &to_val, default_color) {
+            let mut props1 = HashMap::new();
+            props1.insert(prop.clone(), p_to);
+            keyframes.push(AnimationKeyframe { at: 1.0, properties: props1 });
+        }
+        if !keyframes.is_empty() {
+            return Some(AnimationDef {
+                id: format!("inline-{}", prop),
+                keyframes,
+                duration,
+                easing,
+                loop_mode,
+                ping_pong,
+            });
+        }
+    }
+    None
+}
+
+pub fn parse_anim_property_val(prop: &str, v: &str, default_color: egui::Color32) -> Option<AnimPropertyValue> {
+    match prop {
+        "offset-x" | "offset-y" | "opacity" | "scale-x" | "scale-y" | "rotation"
+        | "border-width" | "rounding" | "padding" | "size" => {
+            if let Ok(f) = v.parse::<f32>() {
+                Some(AnimPropertyValue::Float(f))
+            } else {
+                Some(AnimPropertyValue::StringVal(v.to_string()))
+            }
+        }
+        "border-color" | "fill" | "text-color" => {
+            if v.contains('{') || (!v.starts_with('#') && v != "accent" && v != "secondary" && v != "border" && v != "text") {
+                Some(AnimPropertyValue::StringVal(v.to_string()))
+            } else {
+                Some(AnimPropertyValue::Color(parse_hex_color_alpha(v, default_color)))
+            }
+        }
+        _ => {
+            if let Ok(f) = v.parse::<f32>() {
+                Some(AnimPropertyValue::Float(f))
+            } else if !v.is_empty() {
+                Some(AnimPropertyValue::StringVal(v.to_string()))
+            } else {
+                None
             }
         }
     }

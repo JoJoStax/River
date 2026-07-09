@@ -42,6 +42,9 @@ logs/
 *.key
 *.cert
 secrets.*
+.secret/
+.data/
+SECRET_*.md
 
 # --- IDEs & Editors ---
 .idea/

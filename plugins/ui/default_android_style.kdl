@@ -25,7 +25,11 @@ plugin id="default-android-style" name="Default Android Style" mode="hotplug" {
                 label text="[ MEDIA CATEGORIES ]" color="secondary" size=12.0
                 menu-bar id="category-nav" style="vertical" size=16.0
                 spacer
-                theme-switcher style="vertical"
+                dropdown label="🔌 Suite: {active}" id="theme-drop-desktop" color="accent" style="menu" {
+                    button label="📱 Default Android Style [Tier 1]" action="SwitchTheme:default-android-style" size=13.0 rounding=6.0 color="text"
+                    button label="✨ Quantum Glass Aurora [Tier 1]" action="SwitchTheme:quantum-glass-suite" size=13.0 rounding=6.0 color="text"
+                    button label="⚡ HyperPulse Cyber Matrix [Tier 1]" action="SwitchTheme:hyperpulse-cyber-suite" size=13.0 rounding=6.0 color="text"
+                }
             }
         }
         central-panel id="m3-content" fill="#00000000" {
@@ -44,7 +48,11 @@ plugin id="default-android-style" name="Default Android Style" mode="hotplug" {
                     button label="🔍" color="text" size=20.0 rounding=24.0
                     spacer
                     device-switcher style="compact"
-                    theme-switcher style="horizontal"
+                    dropdown label="🎨 {active}" id="theme-drop-mobile" color="accent" style="menu" {
+                        button label="📱 Default Android Style [Tier 1]" action="SwitchTheme:default-android-style" size=13.0 rounding=6.0 color="text"
+                        button label="✨ Quantum Glass Aurora [Tier 1]" action="SwitchTheme:quantum-glass-suite" size=13.0 rounding=6.0 color="text"
+                        button label="⚡ HyperPulse Cyber Matrix [Tier 1]" action="SwitchTheme:hyperpulse-cyber-suite" size=13.0 rounding=6.0 color="text"
+                    }
                 }
             }
         }
@@ -72,7 +80,11 @@ plugin id="default-android-style" name="Default Android Style" mode="hotplug" {
                     button label="⚙️" color="text" size=24.0 rounding=28.0
                     spacer
                     device-switcher style="horizontal"
-                    theme-switcher style="horizontal"
+                    dropdown label="🔌 Suite: {active}" id="theme-drop-tv" color="accent" style="menu" {
+                        button label="📱 Default Android Style [Tier 1]" action="SwitchTheme:default-android-style" size=14.0 rounding=6.0 color="text"
+                        button label="✨ Quantum Glass Aurora [Tier 1]" action="SwitchTheme:quantum-glass-suite" size=14.0 rounding=6.0 color="text"
+                        button label="⚡ HyperPulse Cyber Matrix [Tier 1]" action="SwitchTheme:hyperpulse-cyber-suite" size=14.0 rounding=6.0 color="text"
+                    }
                 }
             }
         }

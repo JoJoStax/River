@@ -4,6 +4,7 @@ pub mod data_exports;
 pub mod hotplug_ui;
 pub mod plugin_core;
 pub mod plugin_ui_core;
+pub mod ui_animations;
 pub mod ui_backgrounds;
 pub mod ui_plugin;
 pub mod ui_renderer;

@@ -1,7 +1,6 @@
 use crate::data_exports::DataContext;
 use crate::plugin_ui_core::{
-    draw_device_switcher, draw_theme_switcher_horizontal, draw_theme_switcher_vertical, UiNode,
-    UiThemeConfig,
+    draw_device_switcher, UiNode, UiThemeConfig,
 };
 use crate::ui_backgrounds::draw_complex_background;
 use crate::ui_plugin::UiPluginManager;
@@ -267,23 +266,33 @@ pub fn render_ui_nodes(
         match node {
             UiNode::Container {
                 kind,
+                id,
+                text,
+                color,
+                style,
                 spacing,
                 padding,
                 children,
                 effect,
                 speed,
+                ..
             } => {
+                let overrides = crate::ui_animations::resolve_anim_overrides(node, config, time, scale, data_ctx);
                 let active_effect = if effect == "none" || effect.is_empty() { config.animation_effect.as_str() } else { effect.as_str() };
                 let active_speed = if *speed > 0.0 { *speed } else if config.animation_speed > 0.0 { config.animation_speed } else { 1.0 };
                 let pulse = ((time * active_speed as f64 * 2.0).sin() * 0.5 + 0.5) as f32;
 
-                let offset_y = match active_effect {
+                let mut offset_y = match active_effect {
                     "float" => ((time * active_speed as f64 * 2.5).sin() * 5.0 * scale as f64) as f32,
                     "bounce" => -(((time * active_speed as f64 * 3.5).sin().abs()) * 7.0 * scale as f64) as f32,
                     _ => 0.0,
                 };
+                offset_y += overrides.offset_y;
                 if offset_y.abs() > 0.1 {
                     ui.add_space(offset_y);
+                }
+                if let Some(op) = overrides.opacity {
+                    ui.set_opacity(op);
                 }
 
                 match kind.as_str() {
@@ -309,10 +318,12 @@ pub fn render_ui_nodes(
                 }
                 "box" => {
                     let mut frame = egui::Frame::none()
-                        .fill(config.fill_color)
-                        .inner_margin(*padding * scale)
-                        .rounding(config.rounding * scale);
-                    if active_effect == "glow" {
+                        .fill(overrides.fill.unwrap_or(config.fill_color))
+                        .inner_margin(overrides.padding.unwrap_or(*padding * scale))
+                        .rounding(overrides.rounding.unwrap_or(config.rounding * scale));
+                    if let Some(bw) = overrides.border_width {
+                        frame = frame.stroke(egui::Stroke::new(bw, overrides.border_color.unwrap_or(config.border_color)));
+                    } else if active_effect == "glow" {
                         frame = frame.stroke(egui::Stroke::new((1.5 + pulse * 2.5) * scale, crate::ui_backgrounds::lerp_color(config.border_color, config.accent_color, pulse)));
                     } else if active_effect == "pulse" {
                         frame = frame.stroke(egui::Stroke::new((1.0 + pulse * 1.5) * scale, config.border_color));
@@ -332,6 +343,41 @@ pub fn render_ui_nodes(
                         );
                     });
                 }
+                "dropdown" | "combo-box" | "menu" => {
+                    let mut active_child_text = String::new();
+                    for child in children {
+                        if let UiNode::Widget { action: ref child_action, text: ref child_text, .. } = child {
+                            if check_active_state(child_action, state, ui_manager) {
+                                active_child_text = child_text.clone();
+                                break;
+                            }
+                        }
+                    }
+                    let mut display_text = if !text.is_empty() {
+                        text.replace("{active}", &active_child_text).replace("{selected}", &active_child_text)
+                    } else if !active_child_text.is_empty() {
+                        format!("🎨 {}", active_child_text)
+                    } else {
+                        "🎨 Select Suite...".to_string()
+                    };
+                    display_text = data_ctx.resolve_text(&display_text);
+
+                    let col = overrides.text_color.unwrap_or_else(|| resolve_color(color, config, data_ctx));
+                    let combo_id = if id.is_empty() { format!("combo-{}", display_text) } else { id.clone() };
+
+                    if style == "combo" || kind == "combo-box" {
+                        egui::ComboBox::from_id_salt(egui::Id::new(combo_id))
+                            .selected_text(egui::RichText::new(&display_text).color(col).family(font_fam.clone()).size(13.0 * scale))
+                            .show_ui(ui, |ui| {
+                                render_ui_nodes(ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx);
+                            });
+                    } else {
+                        let btn_text = egui::RichText::new(&display_text).color(col).family(font_fam.clone()).size(13.0 * scale);
+                        ui.menu_button(btn_text, |ui| {
+                            render_ui_nodes(ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx);
+                        });
+                    }
+                }
                 // Any custom container tag — render as a vertical group
                 _ => {
                     ui.vertical(|ui| {
@@ -344,7 +390,7 @@ pub fn render_ui_nodes(
                     });
                 }
                 }
-            },
+            }
 
             // ── Grid Node ───────────────────────────────────────────────
             UiNode::Grid {
@@ -359,6 +405,7 @@ pub fn render_ui_nodes(
                 children,
                 effect,
                 speed,
+                ..
             } => {
                 render_generic_grid(
                     ui, id, *columns, *spacing_x, *spacing_y, *min_cell_width,
@@ -410,35 +457,44 @@ pub fn render_ui_nodes(
                 border_width,
                 effect,
                 speed,
+                ..
             } => {
-                // Resolve data bindings in text and action strings
+                let overrides = crate::ui_animations::resolve_anim_overrides(node, config, time, scale, data_ctx);
                 let resolved_text = data_ctx.resolve_text(text);
                 let resolved_action = data_ctx.resolve_text(action);
+                if overrides.offset_x.abs() > 0.1 || overrides.offset_y.abs() > 0.1 {
+                    ui.add_space(overrides.offset_y);
+                }
+                if let Some(op) = overrides.opacity {
+                    ui.set_opacity(op);
+                }
 
                 match kind.as_str() {
                 "heading" => {
-                    let col = resolve_color(color, config, data_ctx);
+                    let col = overrides.text_color.unwrap_or_else(|| resolve_color(color, config, data_ctx));
+                    let sz = overrides.size.unwrap_or(*size * scale);
                     ui.heading(
                         egui::RichText::new(&resolved_text)
-                            .size(*size * scale)
+                            .size(if sz > 0.0 { sz } else { 20.0 * scale })
                             .family(font_fam.clone())
                             .strong()
                             .color(col),
                     );
                 }
                 "label" => {
-                    let col = resolve_color(color, config, data_ctx);
+                    let col = overrides.text_color.unwrap_or_else(|| resolve_color(color, config, data_ctx));
+                    let sz = overrides.size.unwrap_or(*size * scale);
                     ui.label(
                         egui::RichText::new(&resolved_text)
-                            .size(*size * scale)
+                            .size(if sz > 0.0 { sz } else { 14.0 * scale })
                             .family(font_fam.clone())
                             .color(col),
                     );
                 }
                 "button" | "nav-item" => {
-                    let col = resolve_color(color, config, data_ctx);
+                    let col = overrides.text_color.unwrap_or_else(|| resolve_color(color, config, data_ctx));
                     let base_size = if *size > 0.0 { *size } else { config.body_size + 2.0 };
-                    let mut anim_size = base_size * scale;
+                    let mut anim_size = overrides.size.unwrap_or(base_size * scale);
                     if effect == "pulse" {
                         let active_speed = if *speed > 0.0 { *speed } else { 1.0 };
                         anim_size += ((time as f32 * active_speed * 3.0).sin() * 2.0) * scale;
@@ -448,24 +504,31 @@ pub fn render_ui_nodes(
                         .family(font_fam.clone())
                         .color(col);
                     let mut btn = egui::Button::new(btn_text);
-                    if *rounding > 0.0 {
+                    if let Some(r) = overrides.rounding {
+                        btn = btn.rounding(egui::Rounding::same(r));
+                    } else if *rounding > 0.0 {
                         btn = btn.rounding(egui::Rounding::same(*rounding * scale));
                     } else {
                         btn = btn.rounding(egui::Rounding::same(config.rounding * scale));
                     }
-                    if effect == "glow" {
+                    if let Some(fill_c) = overrides.fill {
+                        btn = btn.fill(fill_c);
+                    }
+                    if let Some(bw) = overrides.border_width {
+                        btn = btn.stroke(egui::Stroke::new(bw, overrides.border_color.unwrap_or(config.border_color)));
+                    } else if effect == "glow" {
                         let active_speed = if *speed > 0.0 { *speed } else { 1.0 };
                         btn = btn.stroke(egui::Stroke::new(1.5 * scale, crate::ui_backgrounds::lerp_color(config.border_color, config.accent_color, (time as f32 * active_speed * 2.5).sin() * 0.5 + 0.5)));
                     }
 
-                    // Check if this button represents an active state
                     let is_active = check_active_state(&resolved_action, state, ui_manager);
-                    if is_active {
+                    if is_active && overrides.fill.is_none() {
                         btn = btn.fill(config.accent_color);
                     }
                     if ui.add(btn).clicked() {
                         if !resolved_action.is_empty() {
                             dispatch_kdl_action(&resolved_action, store, rt, ui_manager, state);
+                            ui.close_menu();
                         }
                     }
                 }
@@ -494,23 +557,45 @@ pub fn render_ui_nodes(
                     );
                 }
                 "theme-switcher" => {
-                    if style == "vertical" {
-                        draw_theme_switcher_vertical(
-                            ui,
-                            ui_manager,
-                            config.accent_color,
-                            config.text_color,
-                            scale,
-                        );
-                    } else {
-                        draw_theme_switcher_horizontal(
-                            ui,
-                            ui_manager,
-                            config.accent_color,
-                            config.text_color,
-                            scale,
-                        );
+                    let mut dropdown_children = Vec::new();
+                    for (plugin_id, name, is_compiled) in ui_manager.list_plugins() {
+                        let badge = if is_compiled { "[Tier 2 AOT]" } else { "[Tier 1 Hotplug]" };
+                        let label = format!("{} {}", name, badge);
+                        dropdown_children.push(UiNode::Widget {
+                            kind: "button".to_string(),
+                            text: label,
+                            url: String::new(),
+                            action: format!("SwitchTheme:{}", plugin_id),
+                            color: "text".to_string(),
+                            size: 13.0,
+                            height: 0.0,
+                            style: String::new(),
+                            columns: 1,
+                            rounding: 6.0,
+                            border_width: 0.0,
+                            effect: "none".to_string(),
+                            speed: 1.0,
+                            animations: Vec::new(),
+                        });
                     }
+                    let dropdown_node = UiNode::Container {
+                        kind: if style == "combo" { "combo-box".to_string() } else { "dropdown".to_string() },
+                        id: "auto-theme-dropdown".to_string(),
+                        text: "🔌 Suite: {active}".to_string(),
+                        color: "accent".to_string(),
+                        style: style.clone(),
+                        spacing: 4.0,
+                        padding: 6.0,
+                        children: dropdown_children,
+                        effect: "none".to_string(),
+                        speed: 1.0,
+                        animations: Vec::new(),
+                    };
+                    render_ui_nodes(
+                        ui,
+                        &[dropdown_node],
+                        state, store, rt, config, time, scale, ui_manager, data_ctx,
+                    );
                 }
                 "device-switcher" => {
                     draw_device_switcher(
