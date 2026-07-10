@@ -42,6 +42,7 @@ pub struct UiPluginManager {
     pub device_id: String,
     pub target_override: Option<String>,
     file_timestamps: HashMap<PathBuf, SystemTime>,
+    pub bg_cache: crate::ui_backgrounds::BackgroundCache,
 }
 
 impl UiPluginManager {
@@ -56,6 +57,7 @@ impl UiPluginManager {
             device_id,
             target_override: None,
             file_timestamps: HashMap::new(),
+            bg_cache: crate::ui_backgrounds::BackgroundCache::new(),
         }
     }
 

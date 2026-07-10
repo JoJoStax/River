@@ -2,7 +2,7 @@ use crate::data_exports::DataContext;
 use crate::plugin_ui_core::{
     draw_device_switcher, UiNode, UiThemeConfig,
 };
-use crate::ui_backgrounds::draw_complex_background;
+use crate::ui_backgrounds::draw_kdl_background;
 use crate::ui_plugin::UiPluginManager;
 use eframe::egui;
 use river_core::MediaCategory;
@@ -74,7 +74,7 @@ pub fn render_theme_layout(
     let data_ctx = crate::data_exports::build_data_context(state, ui_manager, config);
 
     if config.background_nodes.is_empty() {
-        draw_complex_background(ctx, config, time);
+        draw_kdl_background(ctx, &ui_manager.bg_cache, &config.id, &config.background_kdl, time);
     } else {
         let rect = ctx.screen_rect();
         let painter = ctx.layer_painter(egui::LayerId::background());

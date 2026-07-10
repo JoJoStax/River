@@ -14,6 +14,12 @@ use eframe::egui;
 use river_engine::RiverEngine;
 use std::sync::Arc;
 
+impl Default for UiPluginManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The Main GUI Application driver for River.
 ///
 /// Notice how we have STRIPPED OUT all hardcoded top and bottom bars!
@@ -37,7 +43,7 @@ const EXTRA_THEME_DIRS: &[&str] = &[
 
 impl RiverGuiApp {
     pub fn new(engine: Arc<RiverEngine>, rt: tokio::runtime::Runtime) -> Self {
-        let mut ui_manager = UiPluginManager::new();
+        let mut ui_manager = UiPluginManager::default();
 
         // Ensure plugins/ui/ directory and default seed files exist on clean installs!
         let _ = std::fs::create_dir_all("plugins/ui");

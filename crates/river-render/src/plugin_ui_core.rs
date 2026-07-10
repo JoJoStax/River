@@ -185,6 +185,7 @@ pub struct UiThemeConfig {
     pub background_url: String,
     pub background_color_2: egui::Color32,
     pub background_speed: f32,
+    pub background_kdl: String,
     pub animation_effect: String,
     pub animation_speed: f32,
     pub title: String,
@@ -226,6 +227,7 @@ impl UiThemeConfig {
             background_url: String::new(),
             background_color_2: egui::Color32::from_rgb(10, 15, 30),
             background_speed: 1.0,
+            background_kdl: String::new(),
             animation_effect: "none".to_string(),
             animation_speed: 1.0,
             title: "🌊 RIVER MEDIA HUB".to_string(),
@@ -281,6 +283,7 @@ impl UiThemeConfig {
                             }
                             config.layouts.insert(target, nodes);
                         } else if child_name == "background" {
+                            config.background_kdl = child.to_string();
                             for entry in child.entries() {
                                 if let Some(key) = entry.name() {
                                     let key_str = key.to_string();
@@ -529,8 +532,177 @@ impl UiThemeConfig {
             }
         }
 
+        if config.background_kdl.is_empty() || !config.background_kdl.contains("layer") {
+            config.background_kdl = generate_fallback_background_kdl(
+                &config.background_type,
+                config.background_color,
+                config.background_color_2,
+                config.accent_color,
+                config.background_speed,
+                &config.background_url,
+            );
+        }
+
         config
     }
+}
+
+fn generate_fallback_background_kdl(
+    bg_type: &str,
+    color1: egui::Color32,
+    color2: egui::Color32,
+    accent: egui::Color32,
+    speed: f32,
+    url: &str,
+) -> String {
+    let hex1 = format!("#{:02x}{:02x}{:02x}", color1.r(), color1.g(), color1.b());
+    let hex2 = format!("#{:02x}{:02x}{:02x}", color2.r(), color2.g(), color2.b());
+    let hex_accent = format!("#{:02x}{:02x}{:02x}", accent.r(), accent.g(), accent.b());
+
+    match bg_type {
+        "gradient" => format!(
+            r#"background type="gradient" {{
+    layer shape="rect" count=30 speed={speed:.2} {{
+        x "0"
+        y "i * (h / 29)"
+        width "w"
+        height "h / 29 + 1"
+        color from="{hex1}" to="{hex2}" mix="clamp((i/29) * 0.7 + (sin(time*speed + (i/29)*pi) * 0.5 + 0.5) * 0.3, 0, 1)"
+    }}
+}}"#
+        ),
+        "grid" => format!(
+            r#"background type="grid" {{
+    layer shape="fill" count=1 {{
+        color value="{hex1}"
+    }}
+    layer shape="line" count=40 speed={:.2} {{
+        x "wrap(i * 36 + time*speed, w + 36) - 36"
+        y "0"
+        x2 "wrap(i * 36 + time*speed, w + 36) - 36"
+        y2 "h"
+        stroke_width "1"
+        color value="{hex2}"
+    }}
+    layer shape="line" count=30 speed={:.2} {{
+        x "0"
+        y "wrap(i * 36 + time*speed, h + 36) - 36"
+        x2 "w"
+        y2 "wrap(i * 36 + time*speed, h + 36) - 36"
+        stroke_width "1"
+        color value="{hex2}"
+    }}
+}}"#,
+            speed * 15.0,
+            speed * 25.0
+        ),
+        "waves" => format!(
+            r#"background type="waves" {{
+    layer shape="fill" count=1 {{
+        color value="{hex1}"
+    }}
+    layer shape="line" count=60 speed={:.2} {{
+        x "(i/59) * w"
+        y "h/6*1 + sin((i/59)*w*0.006 + time*speed) * 35"
+        x2 "((i+1)/59) * w"
+        y2 "h/6*1 + sin(((i+1)/59)*w*0.006 + time*speed) * 35"
+        stroke_width "2.5"
+        color from="{hex_accent}" to="{hex2}" mix="0"
+    }}
+    layer shape="line" count=60 speed={:.2} {{
+        x "(i/59) * w"
+        y "h/6*2 + sin((i/59)*w*0.008 + time*speed) * 50"
+        x2 "((i+1)/59) * w"
+        y2 "h/6*2 + sin(((i+1)/59)*w*0.008 + time*speed) * 50"
+        stroke_width "2.5"
+        color from="{hex_accent}" to="{hex2}" mix="0.25"
+    }}
+    layer shape="line" count=60 speed={:.2} {{
+        x "(i/59) * w"
+        y "h/6*3 + sin((i/59)*w*0.010 + time*speed) * 65"
+        x2 "((i+1)/59) * w"
+        y2 "h/6*3 + sin(((i+1)/59)*w*0.010 + time*speed) * 65"
+        stroke_width "2.5"
+        color from="{hex_accent}" to="{hex2}" mix="0.5"
+    }}
+    layer shape="line" count=60 speed={:.2} {{
+        x "(i/59) * w"
+        y "h/6*4 + sin((i/59)*w*0.012 + time*speed) * 80"
+        x2 "((i+1)/59) * w"
+        y2 "h/6*4 + sin(((i+1)/59)*w*0.012 + time*speed) * 80"
+        stroke_width "2.5"
+        color from="{hex_accent}" to="{hex2}" mix="0.75"
+    }}
+    layer shape="line" count=60 speed={:.2} {{
+        x "(i/59) * w"
+        y "h/6*5 + sin((i/59)*w*0.014 + time*speed) * 95"
+        x2 "((i+1)/59) * w"
+        y2 "h/6*5 + sin(((i+1)/59)*w*0.014 + time*speed) * 95"
+        stroke_width "2.5"
+        color from="{hex_accent}" to="{hex2}" mix="1"
+    }}
+}}"#,
+            speed * 1.0,
+            speed * 1.3,
+            speed * 1.6,
+            speed * 1.9,
+            speed * 2.2
+        ),
+        "matrix" => format!(
+            r#"background type="matrix" {{
+    layer shape="fill" count=1 {{
+        color value="{hex1}"
+    }}
+    layer shape="line" count=40 speed={speed:.2} {{
+        x "i * 25 + 10"
+        y "wrap(time*speed*(100 + (i % 5)*30) + i*137, h + 200) - 100 - 40"
+        x2 "i * 25 + 10"
+        y2 "wrap(time*speed*(100 + (i % 5)*30) + i*137, h + 200) - 100"
+        stroke_width "2"
+        color value="{hex2}"
+    }}
+    layer shape="circle" count=40 speed={speed:.2} {{
+        x "i * 25 + 10"
+        y "wrap(time*speed*(100 + (i % 5)*30) + i*137, h + 200) - 100"
+        radius "2.5"
+        color value="{hex_accent}"
+    }}
+}}"#
+        ),
+        "stars" => format!(
+            r#"background type="stars" {{
+    layer shape="fill" count=1 {{
+        color value="{hex1}"
+    }}
+    layer shape="circle" count=60 speed={speed:.2} {{
+        x "wrap(i * 313, w)"
+        y "wrap(i * 701, h)"
+        radius "1.0 + (sin(time*speed + i) * 0.5 + 0.5) * 1.5"
+        color from="{hex2}" to="{hex_accent}" mix="sin(time*speed + i) * 0.5 + 0.5"
+    }}
+}}"#
+        ),
+        "image" | "svg" => format!(
+            r#"background type="image" {{
+    layer shape="fill" count=1 {{
+        color value="{hex1}"
+    }}
+    layer shape="image" {{
+        image url="{url}" fit="cover"
+    }}
+}}"#
+        ),
+        _ => format!(
+            r#"background type="solid" {{
+    layer shape="fill" count=1 {{
+        color value="{hex1}"
+    }}
+}}"#
+        ),
+    }
+}
+
+impl UiThemeConfig {
 
     pub fn get_font_family(&self) -> egui::FontFamily {
         if self.font_family == "monospace" {
@@ -558,7 +730,7 @@ impl UiThemeConfig {
         if self.animation_effect != "none" && !self.animation_effect.is_empty() {
             return true;
         }
-        if self.background_type != "solid" && !self.background_type.is_empty() {
+        if self.background_kdl.contains("time") {
             return true;
         }
         fn tree_has_animation(nodes: &[UiNode]) -> bool {
