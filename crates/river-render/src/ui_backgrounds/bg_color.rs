@@ -5,8 +5,8 @@ use eframe::egui::Color32;
 
 pub fn parse_color(s: &str) -> Option<Color32> {
     let s = s.trim();
-    if let Some(hex) = s.strip_prefix('#') {
-        return parse_hex(hex);
+    if s.starts_with('#') {
+        return crate::plugin_ui_core::parse_hex_color(s);
     }
     // A handful of convenience names; extend as you like.
     match s.to_ascii_lowercase().as_str() {
@@ -17,26 +17,6 @@ pub fn parse_color(s: &str) -> Option<Color32> {
         "green" => Some(Color32::GREEN),
         "blue" => Some(Color32::BLUE),
         "yellow" => Some(Color32::YELLOW),
-        _ => None,
-    }
-}
-
-fn parse_hex(hex: &str) -> Option<Color32> {
-    let hex = hex.trim();
-    match hex.len() {
-        6 => {
-            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-            Some(Color32::from_rgb(r, g, b))
-        }
-        8 => {
-            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-            let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
-            Some(Color32::from_rgba_unmultiplied(r, g, b, a))
-        }
         _ => None,
     }
 }

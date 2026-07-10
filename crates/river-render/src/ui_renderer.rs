@@ -904,28 +904,9 @@ fn resolve_color(color: &str, config: &UiThemeConfig, data_ctx: &DataContext) ->
         "text" => config.text_color,
         "border" => config.border_color,
         hex if hex.starts_with('#') => {
-            parse_inline_hex(hex).unwrap_or(config.text_color)
+            crate::plugin_ui_core::parse_hex_color(hex).unwrap_or(config.text_color)
         }
         _ => config.text_color,
-    }
-}
-
-/// Parse a `#rrggbb` or `#rrggbbaa` hex color string.
-fn parse_inline_hex(hex: &str) -> Option<egui::Color32> {
-    let hex = hex.trim_start_matches('#');
-    if hex.len() == 8 {
-        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-        let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
-        Some(egui::Color32::from_rgba_unmultiplied(r, g, b, a))
-    } else if hex.len() == 6 {
-        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-        Some(egui::Color32::from_rgb(r, g, b))
-    } else {
-        None
     }
 }
 

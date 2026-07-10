@@ -1002,27 +1002,26 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
     }
 }
 
-pub fn parse_hex_color_alpha(hex: &str, default: egui::Color32) -> egui::Color32 {
-    let hex = hex.trim_start_matches('#');
+pub fn parse_hex_color(hex: &str) -> Option<egui::Color32> {
+    let hex = hex.trim_start_matches('#').trim();
     if hex.len() == 8 {
-        if let (Ok(r), Ok(g), Ok(b), Ok(a)) = (
-            u8::from_str_radix(&hex[0..2], 16),
-            u8::from_str_radix(&hex[2..4], 16),
-            u8::from_str_radix(&hex[4..6], 16),
-            u8::from_str_radix(&hex[6..8], 16),
-        ) {
-            return egui::Color32::from_rgba_unmultiplied(r, g, b, a);
-        }
+        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+        let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
+        Some(egui::Color32::from_rgba_unmultiplied(r, g, b, a))
     } else if hex.len() == 6 {
-        if let (Ok(r), Ok(g), Ok(b)) = (
-            u8::from_str_radix(&hex[0..2], 16),
-            u8::from_str_radix(&hex[2..4], 16),
-            u8::from_str_radix(&hex[4..6], 16),
-        ) {
-            return egui::Color32::from_rgb(r, g, b);
-        }
+        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+        Some(egui::Color32::from_rgb(r, g, b))
+    } else {
+        None
     }
-    default
+}
+
+pub fn parse_hex_color_alpha(hex: &str, default: egui::Color32) -> egui::Color32 {
+    parse_hex_color(hex).unwrap_or(default)
 }
 
 /// Helper: Draw theme switcher buttons vertically inside a sidebar.
