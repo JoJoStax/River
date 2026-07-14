@@ -5,12 +5,45 @@ edition = "2021"
 description = "Composition Root for River: Dependency injection container tying ports, adapters, services, and presentation together"
 
 [dependencies]
-river-core = { workspace = true }
-river-ports = { workspace = true }
-river-services = { workspace = true }
-river-storage = { workspace = true }
-river-network = { workspace = true }
+river-core        = { workspace = true }
+river-ports       = { workspace = true }
+river-services    = { workspace = true }
+river-storage     = { workspace = true }
+river-network     = { workspace = true }
 river-presentation = { workspace = true }
-tokio = { workspace = true }
-tracing = { workspace = true }
-thiserror = { workspace = true }
+tokio             = { workspace = true }
+tracing           = { workspace = true }
+thiserror         = { workspace = true }
+reqwest           = { workspace = true }
+
+# ── Media players — 100 % pure Rust (zero FFI) ───────────────────────────────
+
+# Audio decoding: MP3, AAC, FLAC, OGG Vorbis, WAV, M4A, AIFF
+# NEON SIMD on ARM = efficient on Android TV / low-end phones
+symphonia = { version = "0.5", default-features = false, features = [
+    "aac", "flac", "mp3", "ogg", "wav", "pcm", "isomp4", "mkv"
+] }
+
+# Audio output: CPAL backend (Android AAudio, iOS AudioUnit, WASAPI, ALSA)
+# Using symphonia feature so no C-library minimp3 is pulled in
+rodio = { version = "0.19", default-features = false, features = [
+    "symphonia-mp3",
+    "symphonia-aac",
+    "symphonia-flac",
+    "symphonia-vorbis",
+    "symphonia-wav",
+] }
+
+# Image decoding for comic pages and PDF embedded images
+image = { version = "0.25", default-features = false, features = [
+    "jpeg", "png", "webp", "gif"
+] }
+
+# CBZ (ZIP) archive extraction
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+# PDF structural parsing (no render — pure object graph access)
+lopdf = "0.33"
+
+# HLS / M3U8 playlist parsing (nom-based, no C)
+m3u8-rs = "6"

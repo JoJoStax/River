@@ -1,3 +1,22 @@
+// ─── Media player modules (100 % pure Rust) ──────────────────────────────────
+pub mod player_common;
+pub mod music_player;
+pub mod video_viewer;
+pub mod comic_viwer;
+pub mod pdf_viewer;
+
+// Public re-exports so callers don't need deep paths.
+pub use player_common::{
+    PlayerHandle, PlayerStatus, RepeatMode, ReadingDir, progress_ratio, advance_queue,
+};
+pub use music_player::{MusicPlayer, MusicState, MusicCmd};
+pub use video_viewer::{
+    VideoPlayer, VideoState, VideoCmd, VideoFrame, VideoDecoder, NullVideoDecoder,
+};
+pub use comic_viwer::{ComicViewer, ComicState, ComicCmd, ComicSource};
+pub use pdf_viewer::{PdfViewer, PdfState, PdfCmd, PdfPageData};
+
+// ─── Engine composition root ─────────────────────────────────────────────────
 use river_core::Result;
 use river_network::ReqwestClient;
 use river_ports::StorageRepository;
