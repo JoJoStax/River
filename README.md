@@ -19,3 +19,9 @@ cargo apk build -p river-render
 cargo apk build --release -p river-render
 ```
 The built APK will be located inside `target/debug/apk/river-render.apk` or `target/release/apk/river-render.apk`.
+
+### Future Plans
+
+- librqbit implementation.
+- ffmpeg-based media processing. Because no all-Rust solution exists yet.
+- go one by one getting media players working from manga to audio to video playback.
