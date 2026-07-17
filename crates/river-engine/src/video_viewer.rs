@@ -1,96 +1,358 @@
-// Pure-Rust video player with pluggable frame decoder.
-// # Crate stack (zero FFI)
-// - **Symphonia** — audio track decoding from MP4 / MKV direct streams
-// - **Rodio / CPAL** — audio output (all platforms including Android)
-// - **m3u8-rs** — HLS `.m3u8` playlist parsing
-// - **reqwest** — segment / stream fetching (with `rustls-tls`, no OpenSSL)
-//
-// # Video frame decoding
-// Video frame decode is intentionally separated behind the [`VideoDecoder`]
-// trait so you can plug in the best available pure-Rust decoder for each
-// platform (or swap in a hardware surface later):
-//
-// - [`NullVideoDecoder`] — audio-only mode; produces no frames
-// - Future: a `SoftwareH264Decoder` wrapping `rust_h264` / `h264-reader`
-//
-// # Communication channels
-// UI: PlayerHandle<VideoCmd, VideoState>  ← mpsc commands / watch state
-// UI: frame_rx: watch::Receiver<Option<Arc<VideoFrame>>>  ← current RGBA frame
+//! FFmpeg video player.
+//! Uses ffmpeg-next for decoding and rodio for audio.
 
-#![forbid(unsafe_code)]
+#![allow(unsafe_code)]
 
-use std::io::{BufReader, Cursor};
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
+use std::any::Any;
 
-use rodio::{Decoder, OutputStream, Sink};
+use ffmpeg_next as ffmpeg;
+use ffmpeg::format::Pixel;
+use ffmpeg::media::Type as MediaType;
+use ffmpeg::software::scaling::{context::Context as Scaler, flag::Flags as ScaleFlags};
+use ffmpeg::software::resampling::context::Context as Resampler;
+use ffmpeg::format::sample::{Sample, Type as SampleType};
+use ffmpeg::util::channel_layout::ChannelLayout;
+
+use rodio::{buffer::SamplesBuffer, OutputStream, Sink};
 use tokio::sync::{mpsc, watch};
-use tracing::{debug, error, warn};
+use tracing::{error, warn};
 
 use river_core::{MediaItem, MediaStream, Subtitle};
 
 use crate::player_common::{PlayerHandle, PlayerStatus};
 
-// ─── Video frame ──────────────────────────────────────────────────────────────
+// ─── Public output types ──────────────────────────────────────────────────────
 
 /// A single decoded video frame in 32-bit RGBA format.
+/// Identical layout to the previous pure-Rust version — the UI is unchanged.
 #[derive(Debug, Clone)]
 pub struct VideoFrame {
-    /// Raw RGBA pixel bytes — `width * height * 4` bytes.
+    /// Raw RGBA bytes: `width * height * 4`.
     pub rgba:     Vec<u8>,
     pub width:    u32,
     pub height:   u32,
-    /// Presentation timestamp in seconds.
+    /// Presentation timestamp in seconds (stream time-base corrected).
     pub pts_secs: f64,
 }
 
-// ─── Pluggable decoder trait ──────────────────────────────────────────────────
+// ─── VideoDecoder trait (public, unchanged) ───────────────────────────────────
 
-/// A pure-Rust video frame decoder.  
+/// Pluggable video frame decoder — same trait as before so existing code
+/// that calls `VideoPlayer::spawn(Box::new(NullVideoDecoder))` still compiles.
 ///
-/// The player calls [`push_data`] with raw encoded bytes (NAL units, MPEG-TS
-/// payloads, etc.) and polls [`next_frame`] to retrieve decoded RGBA frames.
-/// Implementors may buffer multiple frames internally.
+/// For real playback pass `Box::new(FfmpegVideoDecoder::open(url, headers)?)`.
 pub trait VideoDecoder: Send + 'static {
-    /// Feed encoded video data into the decoder.
     fn push_data(&mut self, data: &[u8]);
-
-    /// Return the next decoded frame, if one is ready.
     fn next_frame(&mut self) -> Option<VideoFrame>;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-/// No-op decoder — enables audio-only playback while the frame pipeline is
-/// not wired up yet.
 pub struct NullVideoDecoder;
-
 impl VideoDecoder for NullVideoDecoder {
-    fn push_data(&mut self, _data: &[u8]) {}
+    fn push_data(&mut self, _: &[u8]) {}
     fn next_frame(&mut self) -> Option<VideoFrame> { None }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
 }
 
-// ─── Public state ─────────────────────────────────────────────────────────────
+// ─── FfmpegVideoDecoder ───────────────────────────────────────────────────────
+
+/// Full FFmpeg-backed decoder.
+///
+/// Open once with [`FfmpegVideoDecoder::open`], then call
+/// [`decode_next`] in a tight loop to pump frames and PCM.
+pub struct FfmpegVideoDecoder {
+    ictx:         ffmpeg::format::context::Input,
+    video_stream: usize,
+    audio_stream: usize,
+    video_dec:    ffmpeg::codec::decoder::Video,
+    audio_dec:    ffmpeg::codec::decoder::Audio,
+    scaler:       Scaler,
+    resampler:    Resampler,
+    frame_queue:  VecDeque<VideoFrame>,
+    audio_queue:  VecDeque<Vec<f32>>,
+    duration_sec: f64,
+    width:        u32,
+    height:       u32,
+    current_pts:  f64,
+}
+
+unsafe impl Send for FfmpegVideoDecoder {}
+
+const SAMPLE_RATE: u32 = 44_100;
+const CHANNELS:   u16  = 2;
+
+impl FfmpegVideoDecoder {
+    /// Open any URL FFmpeg supports.
+    ///
+    /// `headers` is passed as AVOption `headers` (e.g. `Referer: …\r\n`).
+    pub fn open(url: &str, headers: Option<&HashMap<String, String>>) -> Result<Self, String> {
+        ffmpeg::init().map_err(|e| format!("ffmpeg init: {e}"))?;
+
+        // Build AVDictionary options for the format context.
+        let mut opts = ffmpeg::Dictionary::new();
+        if let Some(h) = headers {
+            let header_str: String = h
+                .iter()
+                .map(|(k, v)| format!("{k}: {v}\r\n"))
+                .collect();
+            opts.set("headers", &header_str);
+        }
+        // Allow HLS live streams.
+        opts.set("live_start_index", "-1");
+        // Generous probe to handle slow servers.
+        opts.set("analyzeduration", "5000000");
+
+        let ictx = ffmpeg::format::input_with_dictionary(&url, opts)
+            .map_err(|e| format!("ffmpeg open '{url}': {e}"))?;
+
+        // Locate best video and audio streams.
+        let video_stream = ictx
+            .streams()
+            .best(MediaType::Video)
+            .ok_or("no video stream")?
+            .index();
+        let audio_stream = ictx
+            .streams()
+            .best(MediaType::Audio)
+            .ok_or("no audio stream")?
+            .index();
+
+        // Build video decoder.
+        let v_stream = ictx.stream(video_stream).unwrap();
+        let v_codec_ctx = ffmpeg::codec::context::Context::from_parameters(
+            v_stream.parameters(),
+        )
+        .map_err(|e| format!("video codec ctx: {e}"))?;
+        let video_dec = v_codec_ctx
+            .decoder()
+            .video()
+            .map_err(|e| format!("video decoder: {e}"))?;
+
+        let width  = video_dec.width();
+        let height = video_dec.height();
+
+        // Pixel-format converter: whatever FFmpeg produces → RGBA.
+        let scaler = Scaler::get(
+            video_dec.format(),
+            width,
+            height,
+            Pixel::RGBA,
+            width,
+            height,
+            ScaleFlags::BILINEAR,
+        )
+        .map_err(|e| format!("scaler: {e}"))?;
+
+        // Build audio decoder.
+        let a_stream = ictx.stream(audio_stream).unwrap();
+        let a_codec_ctx = ffmpeg::codec::context::Context::from_parameters(
+            a_stream.parameters(),
+        )
+        .map_err(|e| format!("audio codec ctx: {e}"))?;
+        let audio_dec = a_codec_ctx
+            .decoder()
+            .audio()
+            .map_err(|e| format!("audio decoder: {e}"))?;
+
+        // PCM resampler: source format → packed f32 stereo at 44100 Hz.
+        let resampler = ffmpeg::software::resampling::Context::get(
+            audio_dec.format(),
+            audio_dec.channel_layout(),
+            audio_dec.rate(),
+            Sample::F32(SampleType::Packed),
+            ChannelLayout::STEREO,
+            SAMPLE_RATE,
+        )
+        .map_err(|e| format!("resampler: {e}"))?;
+
+        // Duration from container (0 for live streams).
+        let duration_sec = if ictx.duration() > 0 {
+            ictx.duration() as f64 / f64::from(ffmpeg::ffi::AV_TIME_BASE)
+        } else {
+            0.0
+        };
+
+        Ok(Self {
+            ictx,
+            video_stream,
+            audio_stream,
+            video_dec,
+            audio_dec,
+            scaler,
+            resampler,
+            frame_queue: VecDeque::new(),
+            audio_queue: VecDeque::new(),
+            duration_sec,
+            width,
+            height,
+            current_pts: 0.0,
+        })
+    }
+
+    /// Decode one packet from the container.
+    ///
+    /// Returns `(video_frame_ready, audio_chunk_ready)` so callers know
+    /// when to drain. Returns `Err` on EOF or unrecoverable error.
+    pub fn decode_next(&mut self) -> Result<(bool, bool), String> {
+        let mut video_ready = false;
+        let mut audio_ready = false;
+
+        match self.ictx.packets().next() {
+            None => return Err("EOF".to_string()),
+            Some((stream, packet)) => {
+                let si = stream.index();
+
+                if si == self.video_stream {
+                    self.video_dec
+                        .send_packet(&packet)
+                        .map_err(|e| format!("send video packet: {e}"))?;
+
+                    let mut raw = ffmpeg::util::frame::video::Video::empty();
+                    while self.video_dec.receive_frame(&mut raw).is_ok() {
+                        let mut rgba = ffmpeg::util::frame::video::Video::empty();
+                        self.scaler
+                            .run(&raw, &mut rgba)
+                            .map_err(|e| format!("scaler run: {e}"))?;
+
+                        // pts in stream time-base → seconds.
+                        let tb  = stream.time_base();
+                        let pts = raw.pts().unwrap_or(0) as f64
+                            * f64::from(tb.numerator())
+                            / f64::from(tb.denominator());
+                        self.current_pts = pts;
+
+                        self.frame_queue.push_back(VideoFrame {
+                            rgba:     rgba.data(0).to_vec(),
+                            width:    self.width,
+                            height:   self.height,
+                            pts_secs: pts,
+                        });
+                        video_ready = true;
+                    }
+                } else if si == self.audio_stream {
+                    self.audio_dec
+                        .send_packet(&packet)
+                        .map_err(|e| format!("send audio packet: {e}"))?;
+
+                    let mut raw = ffmpeg::util::frame::audio::Audio::empty();
+                    while self.audio_dec.receive_frame(&mut raw).is_ok() {
+                        let mut out = ffmpeg::util::frame::audio::Audio::empty();
+                        let delay = self
+                            .resampler
+                            .run(&raw, &mut out)
+                            .map_err(|e| format!("resampler run: {e}"))?;
+
+                        let samples = out.data(0);
+                        // Interpret raw bytes as packed f32 LE.
+                        let floats: Vec<f32> = samples
+                            .chunks_exact(4)
+                            .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                            .collect();
+
+                        if !floats.is_empty() {
+                            self.audio_queue.push_back(floats);
+                            audio_ready = true;
+                        }
+
+                        // Flush resampler tail.
+                        if delay.is_some() {
+                            let mut flush = ffmpeg::util::frame::audio::Audio::empty();
+                            while self.resampler.flush(&mut flush).is_ok() {
+                                let s = flush.data(0);
+                                let floats: Vec<f32> = s
+                                    .chunks_exact(4)
+                                    .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                                    .collect();
+                                if !floats.is_empty() {
+                                    self.audio_queue.push_back(floats);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok((video_ready, audio_ready))
+    }
+
+    /// Drain all buffered PCM chunks since the last call.
+    pub fn drain_audio(&mut self) -> Vec<Vec<f32>> {
+        self.audio_queue.drain(..).collect()
+    }
+
+    /// Frame-accurate seek via libavformat.
+    pub fn seek(&mut self, secs: f64) -> Result<(), String> {
+        let ts = (secs * f64::from(ffmpeg::ffi::AV_TIME_BASE)) as i64;
+        unsafe {
+            // SEEK_FLAG_BACKWARD ensures we land on a keyframe at or before ts.
+            let ret = ffmpeg::ffi::av_seek_frame(
+                self.ictx.as_mut_ptr(),
+                -1, // any stream
+                ts,
+                ffmpeg::ffi::AVSEEK_FLAG_BACKWARD as i32,
+            );
+            if ret < 0 {
+                return Err(format!("seek failed: {ret}"));
+            }
+        }
+        // Flush decoder buffers so stale frames don't appear after seek.
+        self.video_dec.flush();
+        self.audio_dec.flush();
+        self.frame_queue.clear();
+        self.audio_queue.clear();
+        self.current_pts = secs;
+        Ok(())
+    }
+
+    /// Total duration from the container header (0.0 for live streams).
+    pub fn duration_secs(&self) -> f64     { self.duration_sec }
+    /// Decoded frame dimensions.
+    pub fn dimensions(&self)     -> (u32, u32) { (self.width, self.height) }
+    /// PTS of the most recently decoded video frame, in seconds.
+    pub fn current_pts(&self)    -> f64     { self.current_pts }
+
+    /// All subtitle streams: `(stream_index, language_code)`.
+    pub fn subtitle_tracks(&self) -> Vec<(usize, String)> {
+        self.ictx
+            .streams()
+            .filter(|s| s.parameters().medium() == MediaType::Subtitle)
+            .map(|s| {
+                let lang = s
+                    .metadata()
+                    .get("language")
+                    .unwrap_or("und")
+                    .to_string();
+                (s.index(), lang)
+            })
+            .collect()
+    }
+}
+
+impl VideoDecoder for FfmpegVideoDecoder {
+    fn push_data(&mut self, _: &[u8]) {}
+    fn next_frame(&mut self) -> Option<VideoFrame> { self.frame_queue.pop_front() }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+}
+
+// ─── Public state (unchanged from before) ────────────────────────────────────
 
 #[derive(Debug, Clone)]
 pub struct VideoState {
     pub status:           PlayerStatus,
     pub title:            String,
-    /// Current playback position in seconds.
     pub position_secs:    f64,
-    /// Total duration in seconds (0 if unknown, e.g. live streams).
     pub duration_secs:    f64,
-    /// Output volume 0.0 – 1.0.
     pub volume:           f32,
     pub is_muted:         bool,
-    /// Active subtitle language code, e.g. `"en"`.
     pub selected_sub:     Option<String>,
-    /// Available subtitle tracks.
     pub subtitles:        Vec<String>,
-    /// HLS / network buffer fill 0.0 – 100.0.
     pub buffering_pct:    f32,
-    /// Width of the video stream (0 until first frame is decoded).
     pub frame_width:      u32,
     pub frame_height:     u32,
-    /// Index of the active quality rendition (0 = highest).
     pub active_rendition: usize,
 }
 
@@ -113,11 +375,10 @@ impl Default for VideoState {
     }
 }
 
-// ─── Commands ─────────────────────────────────────────────────────────────────
+// ─── Commands (unchanged) ─────────────────────────────────────────────────────
 
 #[derive(Debug)]
 pub enum VideoCmd {
-    /// Load a new item with a set of candidate streams and optional subtitles.
     Load {
         item:      MediaItem,
         streams:   Vec<MediaStream>,
@@ -126,27 +387,22 @@ pub enum VideoCmd {
     Play,
     Pause,
     Stop,
-    /// Absolute seek in seconds.
     Seek(f64),
     SetVolume(f32),
     ToggleMute,
-    /// Select subtitle by language code; `None` disables subtitles.
     SelectSubtitle(Option<String>),
-    /// Switch to a different quality rendition by index.
     SelectStream(usize),
 }
 
-// ─── Player facade ────────────────────────────────────────────────────────────
+// ─── Player facade (unchanged public API) ────────────────────────────────────
 
 pub struct VideoPlayer;
 
 impl VideoPlayer {
     /// Spawn the background video task.
     ///
-    /// Returns:
-    /// - `PlayerHandle` — send commands and read state from the UI
-    /// - `frame_rx` — current decoded [`VideoFrame`], ready to upload as an
-    ///   egui texture; `None` until the first frame arrives
+    /// - Pass `Box::new(FfmpegVideoDecoder::open(url, headers)?)` for real playback.
+    /// - Pass `Box::new(NullVideoDecoder)` for audio-only / testing.
     pub fn spawn(
         decoder: Box<dyn VideoDecoder>,
     ) -> (
@@ -157,7 +413,7 @@ impl VideoPlayer {
         let (state_tx, state_rx) = watch::channel(VideoState::default());
         let (frame_tx, frame_rx) = watch::channel(None);
 
-        // OutputStream is !Send — run on a dedicated thread.
+        // OutputStream is !Send — run everything on a dedicated OS thread.
         let rt = tokio::runtime::Handle::current();
         std::thread::spawn(move || {
             rt.block_on(video_task(cmd_rx, state_tx, frame_tx, decoder));
@@ -167,91 +423,201 @@ impl VideoPlayer {
     }
 }
 
-// ─── Internal types ───────────────────────────────────────────────────────────
+// ─── Internal context ────────── yeepeeeeee ───────────────────────────────────
 
-struct PlayerContext {
-    queue:        Vec<MediaStream>,
+struct Ctx {
+    streams:      Vec<MediaStream>,
     index:        usize,
-    subtitles:    Vec<Subtitle>,
-    selected_sub: Option<String>,
     volume:       f32,
     is_muted:     bool,
+    selected_sub: Option<String>,
+    /// The live FFmpeg decoder — `None` when idle.
+    decoder:      Option<Box<dyn VideoDecoder>>,
 }
 
 // ─── Background task ──────────────────────────────────────────────────────────
 
 async fn video_task(
-    mut cmd_rx: mpsc::Receiver<VideoCmd>,
-    state_tx:   watch::Sender<VideoState>,
-    frame_tx:   watch::Sender<Option<Arc<VideoFrame>>>,
-    mut decoder: Box<dyn VideoDecoder>,
+    mut cmd_rx:   mpsc::Receiver<VideoCmd>,
+    state_tx:     watch::Sender<VideoState>,
+    frame_tx:     watch::Sender<Option<Arc<VideoFrame>>>,
+    init_decoder: Box<dyn VideoDecoder>,
 ) {
-    // Audio output — rodio for the audio track.
+    // Audio output — stays alive for the entire task lifetime.
     let audio_ctx = OutputStream::try_default().ok();
     let sink: Option<Sink> = audio_ctx
         .as_ref()
         .and_then(|(_, h)| Sink::try_new(h).ok());
 
-    let mut ctx = PlayerContext {
-        queue:        Vec::new(),
+    let mut ctx = Ctx {
+        streams:      Vec::new(),
         index:        0,
-        subtitles:    Vec::new(),
-        selected_sub: None,
         volume:       1.0,
         is_muted:     false,
+        selected_sub: None,
+        decoder:      Some(init_decoder),
     };
 
     loop {
-        match tokio::time::timeout(Duration::from_millis(200), cmd_rx.recv()).await {
+        // 1 ms decode tick to keep AV in sync; commands are checked each lap.
+        match tokio::time::timeout(Duration::from_millis(1), cmd_rx.recv()).await {
             Ok(None) => break,
+
             Ok(Some(cmd)) => {
-                process_video_cmd(
-                    cmd, &mut ctx, &sink, &state_tx, &frame_tx, &mut *decoder,
-                )
-                .await;
+                handle_cmd(cmd, &mut ctx, &sink, &state_tx, &frame_tx).await;
             }
-            Err(_tick) => {
-                // Update position.
-                let pos = sink.as_ref().map(|s| s.get_pos().as_secs_f64()).unwrap_or(0.0);
+
+            // Decode tick — pump the FFmpeg pipeline.
+            Err(_) => {
                 let is_playing = state_tx.borrow().status == PlayerStatus::Playing;
-                if is_playing {
-                    let _ = state_tx.send_modify(|s| s.position_secs = pos);
+                if !is_playing { continue; }
+
+                let dec = match ctx.decoder.as_mut() {
+                    Some(d) => d,
+                    None    => continue,
+                };
+
+                // Pump one packet. EOF or error → mark Ended.
+                match pump_once(dec.as_mut(), &sink, &frame_tx) {
+                    Ok((_, _)) => {
+                        // Update position and dimensions from the decoder.
+                        let (pos, w, h) = if let Some(ffm) = dec.as_any_mut().downcast_mut::<FfmpegVideoDecoder>() {
+                            (ffm.current_pts(), ffm.width, ffm.height)
+                        } else {
+                            (0.0, 0, 0)
+                        };
+                        let _ = state_tx.send_modify(|s| {
+                            s.position_secs = pos;
+                            if w > 0 { s.frame_width  = w; }
+                            if h > 0 { s.frame_height = h; }
+                        });
+                    }
+                    Err(e) if e == "EOF" => {
+                        let _ = state_tx.send_modify(|s| s.status = PlayerStatus::Ended);
+                    }
+                    Err(e) => {
+                        error!("video_player: decode error: {e}");
+                        let _ = state_tx.send_modify(|s| {
+                            s.status = PlayerStatus::Error(e);
+                        });
+                    }
                 }
             }
         }
     }
 }
 
-async fn process_video_cmd(
+/// Decode one packet and push audio/video to their channels.
+fn pump_once(
+    dec:      &mut dyn VideoDecoder,
+    sink:     &Option<Sink>,
+    frame_tx: &watch::Sender<Option<Arc<VideoFrame>>>,
+) -> Result<(bool, bool), String> {
+    let ffm = match dec.as_any_mut().downcast_mut::<FfmpegVideoDecoder>() {
+        Some(f) => f,
+        None => {
+            let _ = dec.next_frame();
+            return Ok((false, false));
+        }
+    };
+
+    let (vr, ar) = ffm.decode_next()?;
+
+    // Drain and play audio.
+    if ar {
+        if let Some(s) = sink {
+            for chunk in ffm.drain_audio() {
+                s.append(SamplesBuffer::new(CHANNELS, SAMPLE_RATE, chunk));
+            }
+        }
+    }
+
+    // Publish latest video frame.
+    if vr {
+        if let Some(frame) = ffm.next_frame() {
+            let _ = frame_tx.send(Some(Arc::new(frame)));
+        }
+    }
+
+    Ok((vr, ar))
+}
+
+// ─── Command handler ──────────────────────────────────────────────────────────
+
+async fn handle_cmd(
     cmd:      VideoCmd,
-    ctx:      &mut PlayerContext,
+    ctx:      &mut Ctx,
     sink:     &Option<Sink>,
     state_tx: &watch::Sender<VideoState>,
     frame_tx: &watch::Sender<Option<Arc<VideoFrame>>>,
-    _decoder:  &mut dyn VideoDecoder,
 ) {
     match cmd {
-        VideoCmd::Load { item, streams, subtitles } => {
-            ctx.queue     = streams;
-            ctx.index     = 0;
-            ctx.subtitles = subtitles.clone();
+        VideoCmd::Load { item, streams, subtitles: _ } => {
+            ctx.streams = streams;
+            ctx.index   = 0;
 
-            let sub_langs: Vec<String> = subtitles.iter().map(|s| s.language.clone()).collect();
             let _ = state_tx.send(VideoState {
-                status: PlayerStatus::Loading,
-                title:  item.title.clone(),
-                subtitles: sub_langs,
-                volume:    ctx.volume,
-                is_muted:  ctx.is_muted,
+                status:   PlayerStatus::Loading,
+                title:    item.title.clone(),
+                volume:   ctx.volume,
+                is_muted: ctx.is_muted,
                 ..Default::default()
             });
 
-            // Try to load the best stream.
-            if let Some(stream) = ctx.queue.get(ctx.index).cloned() {
-                start_audio(&stream, sink, ctx.volume, ctx.is_muted).await;
-            }
+            // Open FFmpeg on a blocking thread (I/O probe).
+            let stream = match ctx.streams.get(ctx.index).cloned() {
+                Some(s) => s,
+                None    => {
+                    let _ = state_tx.send_modify(|s| {
+                        s.status = PlayerStatus::Error("no streams".to_string());
+                    });
+                    return;
+                }
+            };
 
-            let _ = state_tx.send_modify(|s| s.status = PlayerStatus::Playing);
+            let url     = stream.url.clone();
+            let headers = stream.headers.clone();
+
+            match tokio::task::spawn_blocking(move || {
+                FfmpegVideoDecoder::open(&url, headers.as_ref())
+            })
+            .await
+            {
+                Ok(Ok(ffm)) => {
+                    let dur  = ffm.duration_secs();
+                    let (w, h) = ffm.dimensions();
+                    let subs: Vec<String> = ffm
+                        .subtitle_tracks()
+                        .into_iter()
+                        .map(|(_, lang)| lang)
+                        .collect();
+
+                    ctx.decoder = Some(Box::new(ffm));
+                    if let Some(s) = sink { s.stop(); apply_volume(Some(s), ctx.volume, ctx.is_muted); }
+
+                    let _ = state_tx.send(VideoState {
+                        status:        PlayerStatus::Playing,
+                        title:         item.title,
+                        duration_secs: dur,
+                        frame_width:   w,
+                        frame_height:  h,
+                        subtitles:     subs,
+                        volume:        ctx.volume,
+                        is_muted:      ctx.is_muted,
+                        ..Default::default()
+                    });
+                }
+                Ok(Err(e)) => {
+                    error!("video_player: FFmpeg open failed: {e}");
+                    let _ = state_tx.send_modify(|s| s.status = PlayerStatus::Error(e));
+                }
+                Err(e) => {
+                    error!("video_player: spawn_blocking panic: {e}");
+                    let _ = state_tx.send_modify(|s| {
+                        s.status = PlayerStatus::Error(e.to_string());
+                    });
+                }
+            }
         }
 
         VideoCmd::Play => {
@@ -266,14 +632,24 @@ async fn process_video_cmd(
 
         VideoCmd::Stop => {
             if let Some(s) = sink { s.stop(); }
+            ctx.decoder = None;
             let _ = frame_tx.send(None);
-            let _ = state_tx.send(VideoState { volume: ctx.volume, ..Default::default() });
+            let _ = state_tx.send(VideoState {
+                volume: ctx.volume, is_muted: ctx.is_muted, ..Default::default()
+            });
         }
 
         VideoCmd::Seek(secs) => {
-            if let Some(s) = sink {
-                let _ = s.try_seek(Duration::from_secs_f64(secs.max(0.0)));
+            if let Some(ffm) = ctx
+                .decoder
+                .as_mut()
+                .and_then(|d| d.as_any_mut().downcast_mut::<FfmpegVideoDecoder>())
+            {
+                if let Err(e) = ffm.seek(secs) {
+                    warn!("video_player: seek error: {e}");
+                }
             }
+            if let Some(s) = sink { s.stop(); apply_volume(Some(s), ctx.volume, ctx.is_muted); }
             let _ = state_tx.send_modify(|s| s.position_secs = secs.max(0.0));
         }
 
@@ -297,118 +673,38 @@ async fn process_video_cmd(
         }
 
         VideoCmd::SelectStream(idx) => {
-            if idx < ctx.queue.len() {
+            if idx < ctx.streams.len() {
                 ctx.index = idx;
-                if let Some(stream) = ctx.queue.get(idx).cloned() {
-                    start_audio(&stream, sink, ctx.volume, ctx.is_muted).await;
+                let stream = ctx.streams[idx].clone();
+                let url    = stream.url.clone();
+                let headers = stream.headers.clone();
+
+                match tokio::task::spawn_blocking(move || {
+                    FfmpegVideoDecoder::open(&url, headers.as_ref())
+                })
+                .await
+                {
+                    Ok(Ok(ffm)) => {
+                        ctx.decoder = Some(Box::new(ffm));
+                        if let Some(s) = sink { s.stop(); apply_volume(Some(s), ctx.volume, ctx.is_muted); }
+                        let _ = state_tx.send_modify(|s| s.active_rendition = idx);
+                    }
+                    Ok(Err(e)) => {
+                        error!("video_player: stream switch failed: {e}");
+                    }
+                    Err(e) => {
+                        error!("video_player: stream switch spawn_blocking failed: {e}");
+                    }
                 }
-                let _ = state_tx.send_modify(|s| s.active_rendition = idx);
             }
         }
     }
 }
 
-/// Start audio playback for the given stream.
-///
-/// For direct streams (MP4, MKV, OGG, FLAC …) we buffer and decode with
-/// Symphonia via Rodio. For HLS playlists we parse the manifest and fetch
-/// the first segment.
-async fn start_audio(stream: &MediaStream, sink: &Option<Sink>, volume: f32, muted: bool) {
-    let url = stream.url.clone();
-    let is_hls = url.contains(".m3u8") || stream.is_hls_or_dash;
-
-    let audio_url = if is_hls {
-        match resolve_hls_audio_url(&url).await {
-            Some(u) => u,
-            None => {
-                warn!("video_player: could not resolve HLS audio stream for {url}");
-                return;
-            }
-        }
-    } else {
-        url
-    };
-
-    debug!("video_player: loading audio from {audio_url}");
-    let bytes = match fetch_bytes(&audio_url).await {
-        Ok(b) => b,
-        Err(e) => { error!("video_player: fetch error: {e}"); return; }
-    };
-
-    let source = match tokio::task::spawn_blocking(move || {
-        Decoder::new(BufReader::new(Cursor::new(bytes)))
-    })
-    .await
-    {
-        Ok(Ok(s)) => s,
-        Ok(Err(e)) => { error!("video_player: decode error: {e}"); return; }
-        Err(e)     => { error!("video_player: blocking task error: {e}"); return; }
-    };
-
-    if let Some(s) = sink {
-        s.stop();
-        apply_volume(Some(s), volume, muted);
-        s.append(source);
-        s.play();
-    }
-}
-
-/// Parse an HLS master or media playlist and return the URL of the first
-/// audio segment — used as a lightweight audio-only fallback while the video
-/// pipeline is not yet active.
-async fn resolve_hls_audio_url(playlist_url: &str) -> Option<String> {
-    let bytes = fetch_bytes(playlist_url).await.ok()?;
-
-    match m3u8_rs::parse_playlist_res(&bytes) {
-        Ok(m3u8_rs::Playlist::MasterPlaylist(master)) => {
-            // Pick the lowest-bandwidth audio-only rendition if available,
-            // otherwise fall back to the first variant stream.
-            let uri = master
-                .alternatives
-                .iter()
-                .find(|a| a.media_type == m3u8_rs::AlternativeMediaType::Audio)
-                .and_then(|a| a.uri.clone())
-                .or_else(|| master.variants.first().map(|v| v.uri.clone()))?;
-
-            // Resolve relative URIs.
-            Some(resolve_relative(playlist_url, &uri))
-        }
-        Ok(m3u8_rs::Playlist::MediaPlaylist(media)) => {
-            // Already a media playlist — return the first segment URI.
-            let seg = media.segments.first()?;
-            Some(resolve_relative(playlist_url, &seg.uri))
-        }
-        Err(e) => {
-            error!("video_player: HLS parse error: {e:?}");
-            None
-        }
-    }
-}
-
-fn resolve_relative(base: &str, path: &str) -> String {
-    if path.starts_with("http://") || path.starts_with("https://") {
-        return path.to_string();
-    }
-    // Strip the filename from base and append path.
-    if let Some(slash) = base.rfind('/') {
-        format!("{}/{}", &base[..slash], path)
-    } else {
-        path.to_string()
-    }
-}
+// ─── Volume helper ────────────────────────────────────────────────────────────
 
 fn apply_volume(sink: Option<&Sink>, volume: f32, muted: bool) {
     if let Some(s) = sink {
         s.set_volume(if muted { 0.0 } else { volume });
     }
-}
-
-async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
-    reqwest::get(url)
-        .await
-        .map_err(|e| e.to_string())?
-        .bytes()
-        .await
-        .map(|b| b.to_vec())
-        .map_err(|e| e.to_string())
 }

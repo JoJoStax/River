@@ -4,28 +4,42 @@ version = "0.1.0"
 edition = "2021"
 description = "Composition Root for River: Dependency injection container tying ports, adapters, services, and presentation together"
 
+[features]
+# Build FFmpeg from source — required for Android TV and Windows targets.
+# On Linux/macOS, leave this off and link against the system libavcodec.
+ffmpeg-vendored = ["ffmpeg-next/build"]
+
 [dependencies]
-river-core        = { workspace = true }
-river-ports       = { workspace = true }
-river-services    = { workspace = true }
-river-storage     = { workspace = true }
-river-network     = { workspace = true }
+river-core         = { workspace = true }
+river-ports        = { workspace = true }
+river-services     = { workspace = true }
+river-storage      = { workspace = true }
+river-network      = { workspace = true }
 river-presentation = { workspace = true }
-tokio             = { workspace = true }
-tracing           = { workspace = true }
-thiserror         = { workspace = true }
-reqwest           = { workspace = true }
+tokio              = { workspace = true }
+tracing            = { workspace = true }
+thiserror          = { workspace = true }
+reqwest            = { workspace = true }
 
-# ── Media players — 100 % pure Rust (zero FFI) ───────────────────────────────
+# ── Video player — FFmpeg ─────────────────────────────────────────────────────
 
-# Audio decoding: MP3, AAC, FLAC, OGG Vorbis, WAV, M4A, AIFF
-# NEON SIMD on ARM = efficient on Android TV / low-end phones
+# Safe Rust wrappers around libavcodec / libavformat / libswscale / libswresample.
+# Supports H.264, H.265, AV1, VP9, MP4, MKV, HLS, DASH, RTMP out of the box.
+ffmpeg-next = { version = "8.1", default-features = false, features = [
+    "codec",               # libavcodec — video + audio decode
+    "format",              # libavformat — container demux + HLS/DASH/RTMP
+    "software-resampling", # libswresample — PCM resampling → f32 stereo 44100 Hz
+    "software-scaling",    # libswscale — pixel format conversion → RGBA
+] }
+
+# ── Other media players — 100 % pure Rust (zero FFI) ─────────────────────────
+
+# Audio decoding for music player: MP3, AAC, FLAC, OGG, WAV, M4A
 symphonia = { version = "0.5", default-features = false, features = [
     "aac", "flac", "mp3", "ogg", "wav", "pcm", "isomp4", "mkv"
 ] }
 
 # Audio output: CPAL backend (Android AAudio, iOS AudioUnit, WASAPI, ALSA)
-# Using symphonia feature so no C-library minimp3 is pulled in
 rodio = { version = "0.19", default-features = false, features = [
     "symphonia-mp3",
     "symphonia-aac",
@@ -42,8 +56,5 @@ image = { version = "0.25", default-features = false, features = [
 # CBZ (ZIP) archive extraction
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
-# PDF structural parsing (no render — pure object graph access)
+# PDF structural parsing
 lopdf = "0.33"
-
-# HLS / M3U8 playlist parsing (nom-based, no C)
-m3u8-rs = "6"

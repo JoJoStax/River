@@ -11,7 +11,8 @@ pub use player_common::{
 };
 pub use music_player::{MusicPlayer, MusicState, MusicCmd};
 pub use video_viewer::{
-    VideoPlayer, VideoState, VideoCmd, VideoFrame, VideoDecoder, NullVideoDecoder,
+    VideoPlayer, VideoState, VideoCmd, VideoFrame,
+    VideoDecoder, NullVideoDecoder, FfmpegVideoDecoder,
 };
 pub use comic_viwer::{ComicViewer, ComicState, ComicCmd, ComicSource};
 pub use pdf_viewer::{PdfViewer, PdfState, PdfCmd, PdfPageData};
