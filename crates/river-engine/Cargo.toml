@@ -26,6 +26,7 @@ reqwest            = { workspace = true }
 # Safe Rust wrappers around libavcodec / libavformat / libswscale / libswresample.
 # Supports H.264, H.265, AV1, VP9, MP4, MKV, HLS, DASH, RTMP out of the box.
 ffmpeg-next = { version = "8.1", default-features = false, features = [
+    "build",               # Build compatible FFmpeg from source (fixes header mismatch on FFmpeg 7/8/9)
     "codec",               # libavcodec — video + audio decode
     "format",              # libavformat — container demux + HLS/DASH/RTMP
     "software-resampling", # libswresample — PCM resampling → f32 stereo 44100 Hz
