@@ -24,4 +24,4 @@ The built APK will be located inside `target/debug/apk/river-render.apk` or `tar
 
 - librqbit implementation.
 - ffmpeg-based media processing. Because no all-Rust solution exists yet.
-- go one by one getting media players working from manga to audio to video playback.
+- go one by one getting media players working from book to audio to video playback.
