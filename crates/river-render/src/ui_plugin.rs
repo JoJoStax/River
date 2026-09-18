@@ -30,6 +30,7 @@ pub trait UiRenderer: Send + Sync {
         ctx: &egui::Context,
         state: &AppState,
         store: &Arc<AppStore>,
+        engine: &Arc<river_engine::RiverEngine>,
         rt: &tokio::runtime::Runtime,
         ui_manager: &mut UiPluginManager,
     );
@@ -43,6 +44,8 @@ pub struct UiPluginManager {
     pub target_override: Option<String>,
     file_timestamps: HashMap<PathBuf, SystemTime>,
     pub bg_cache: crate::ui_backgrounds::BackgroundCache,
+    pub local_state: HashMap<String, String>,
+    pub function_registry: Arc<crate::render_functions::RenderFunctionRegistry>,
 }
 
 impl UiPluginManager {
@@ -58,7 +61,23 @@ impl UiPluginManager {
             target_override: None,
             file_timestamps: HashMap::new(),
             bg_cache: crate::ui_backgrounds::BackgroundCache::new(),
+            local_state: HashMap::new(),
+            function_registry: Arc::new(crate::render_functions::RenderFunctionRegistry::new()),
         }
+    }
+
+    pub fn get_state(&self, key: &str) -> Option<&str> {
+        self.local_state.get(key).map(|s| s.as_str())
+    }
+
+    pub fn set_state(&mut self, key: &str, value: &str) {
+        self.local_state.insert(key.to_string(), value.to_string());
+    }
+
+    pub fn toggle_state(&mut self, key: &str) {
+        let current = self.local_state.get(key).map(|s| s.as_str()).unwrap_or("false");
+        let new_val = if current == "true" || current == "1" { "false" } else { "true" };
+        self.local_state.insert(key.to_string(), new_val.to_string());
     }
 
     pub fn register_plugin(&mut self, plugin: Arc<dyn UiRenderer>) {
@@ -121,6 +140,8 @@ impl UiPluginManager {
                             self.file_timestamps.insert(path.clone(), modified);
                         }
                     }
+                    // Load or reload the KDL theme file into memory and register it as a plugin!
+                    // need to reduce if statements
                     if let Ok(raw_kdl) = std::fs::read_to_string(&path) {
                         if let Ok(doc) = load_kdl_plugin(&raw_kdl) {
                             let config = UiThemeConfig::from_kdl(&doc);

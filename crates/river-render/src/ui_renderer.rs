@@ -6,6 +6,7 @@ use crate::ui_backgrounds::draw_kdl_background;
 use crate::ui_plugin::UiPluginManager;
 use eframe::egui;
 use river_core::MediaCategory;
+use river_engine::RiverEngine;
 use river_presentation::{AppState, AppStore, CatalogState, Intent};
 use std::sync::Arc;
 
@@ -47,6 +48,7 @@ pub fn render_theme_layout(
     ctx: &egui::Context,
     state: &AppState,
     store: &Arc<AppStore>,
+    engine: &Arc<RiverEngine>,
     rt: &tokio::runtime::Runtime,
     ui_manager: &mut UiPluginManager,
 ) {
@@ -58,6 +60,13 @@ pub fn render_theme_layout(
         ctx.request_repaint();
     }
     let time = ctx.input(|i| i.time);
+
+    // Initialize any theme-defined local state variables
+    for (k, v) in &config.initial_state {
+        if !ui_manager.local_state.contains_key(k) {
+            ui_manager.local_state.insert(k.clone(), v.clone());
+        }
+    }
 
     // Calculate responsive scale factor based on screen width!
     let scale = (screen_width / 850.0).clamp(0.60, 1.0);
@@ -90,6 +99,7 @@ pub fn render_theme_layout(
                     &config.background_nodes,
                     state,
                     store,
+                    engine,
                     rt,
                     config,
                     time,
@@ -105,6 +115,7 @@ pub fn render_theme_layout(
         ctx,
         state,
         store,
+        engine,
         rt,
         config,
         time,
@@ -130,6 +141,7 @@ pub fn render_ast_panels(
     ctx: &egui::Context,
     state: &AppState,
     store: &Arc<AppStore>,
+    engine: &Arc<RiverEngine>,
     rt: &tokio::runtime::Runtime,
     config: &UiThemeConfig,
     time: f64,
@@ -172,7 +184,7 @@ pub fn render_ast_panels(
                         }
                         panel.show(ctx, |ui| {
                             render_ui_nodes(
-                                ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+                                ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                             );
                         });
                     }
@@ -191,7 +203,7 @@ pub fn render_ast_panels(
                         }
                         panel.show(ctx, |ui| {
                             render_ui_nodes(
-                                ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+                                ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                             );
                         });
                     }
@@ -204,7 +216,7 @@ pub fn render_ast_panels(
                             .resizable(true);
                         panel.show(ctx, |ui| {
                             render_ui_nodes(
-                                ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+                                ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                             );
                         });
                     }
@@ -217,7 +229,7 @@ pub fn render_ast_panels(
                             .resizable(true);
                         panel.show(ctx, |ui| {
                             render_ui_nodes(
-                                ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+                                ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                             );
                         });
                     }
@@ -234,7 +246,7 @@ pub fn render_ast_panels(
                             .frame(egui::Frame::none().fill(*fill).inner_margin(margin))
                             .show(ctx, |ui| {
                                 render_ui_nodes(
-                                    ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+                                    ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                                 );
                             });
                     }
@@ -247,6 +259,7 @@ pub fn render_ast_panels(
                         std::slice::from_ref(node),
                         state,
                         store,
+                        engine,
                         rt,
                         config,
                         time,
@@ -278,6 +291,7 @@ pub fn render_ui_nodes(
     nodes: &[UiNode],
     state: &AppState,
     store: &Arc<AppStore>,
+    engine: &Arc<RiverEngine>,
     rt: &tokio::runtime::Runtime,
     config: &UiThemeConfig,
     time: f64,
@@ -327,7 +341,7 @@ pub fn render_ui_nodes(
                             ui.style_mut().spacing.item_spacing.x = *spacing * scale;
                         }
                         render_ui_nodes(
-                            ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+                            ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                         );
                     });
                 }
@@ -337,7 +351,7 @@ pub fn render_ui_nodes(
                             ui.style_mut().spacing.item_spacing.y = *spacing * scale;
                         }
                         render_ui_nodes(
-                            ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+                            ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                         );
                     });
                 }
@@ -357,14 +371,14 @@ pub fn render_ui_nodes(
                     }
                     frame.show(ui, |ui| {
                         render_ui_nodes(
-                            ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+                            ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                         );
                     });
                 }
                 "scroll" => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         render_ui_nodes(
-                            ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+                            ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                         );
                     });
                 }
@@ -394,12 +408,12 @@ pub fn render_ui_nodes(
                         egui::ComboBox::from_id_salt(egui::Id::new(combo_id))
                             .selected_text(egui::RichText::new(&display_text).color(col).family(font_fam.clone()).size(13.0 * scale))
                             .show_ui(ui, |ui| {
-                                render_ui_nodes(ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx);
+                                render_ui_nodes(ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx);
                             });
                     } else {
                         let btn_text = egui::RichText::new(&display_text).color(col).family(font_fam.clone()).size(13.0 * scale);
                         ui.menu_button(btn_text, |ui| {
-                            render_ui_nodes(ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx);
+                            render_ui_nodes(ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx);
                         });
                     }
                 }
@@ -410,7 +424,7 @@ pub fn render_ui_nodes(
                             ui.style_mut().spacing.item_spacing.y = *spacing * scale;
                         }
                         render_ui_nodes(
-                            ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+                            ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                         );
                     });
                 }
@@ -436,7 +450,7 @@ pub fn render_ui_nodes(
                     ui, id, *columns, *spacing_x, *spacing_y, *min_cell_width,
                     *fill, *rounding, *border_width, children,
                     effect, *speed,
-                    state, store, rt, config, time, scale, ui_manager, data_ctx,
+                    state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                 );
             }
 
@@ -449,7 +463,7 @@ pub fn render_ui_nodes(
             } => {
                 render_for_each(
                     ui, source, item_var, template,
-                    state, store, rt, config, time, scale, ui_manager, data_ctx,
+                    state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                 );
             }
 
@@ -463,8 +477,42 @@ pub fn render_ui_nodes(
             } => {
                 render_condition(
                     ui, source, equals, not_equals, children, else_children,
-                    state, store, rt, config, time, scale, ui_manager, data_ctx,
+                    state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                 );
+            }
+
+            // ── Functional Invocation Node ──────────────────────────────
+            UiNode::Invoke {
+                function,
+                props,
+                children,
+            } => {
+                let render_ctx = crate::render_functions::RenderContext {
+                    config,
+                    ctx: ui.ctx().clone(),
+                    state,
+                    store,
+                    engine,
+                    rt,
+                    scale,
+                    time,
+                    data_ctx,
+                };
+                let registry = ui_manager.function_registry.clone();
+                let rendered = registry.render(
+                    function,
+                    ui,
+                    &render_ctx,
+                    props,
+                    children,
+                );
+                if !rendered {
+                    ui.label(
+                        egui::RichText::new(format!("[Unknown function: {}]", function))
+                            .color(egui::Color32::YELLOW)
+                            .italics(),
+                    );
+                }
             }
 
             // ── Widget Nodes ────────────────────────────────────────────
@@ -619,7 +667,7 @@ pub fn render_ui_nodes(
                     render_ui_nodes(
                         ui,
                         &[dropdown_node],
-                        state, store, rt, config, time, scale, ui_manager, data_ctx,
+                        state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                     );
                 }
                 "device-switcher" => {
@@ -682,6 +730,7 @@ fn render_generic_grid(
     _speed: f32,
     state: &AppState,
     store: &Arc<AppStore>,
+    engine: &Arc<RiverEngine>,
     rt: &tokio::runtime::Runtime,
     config: &UiThemeConfig,
     time: f64,
@@ -712,7 +761,7 @@ fn render_generic_grid(
                         render_ui_nodes(
                             ui,
                             std::slice::from_ref(child),
-                            state, store, rt, config, time, scale, ui_manager, data_ctx,
+                            state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
                         );
                     },
                 );
@@ -736,6 +785,7 @@ fn render_for_each(
     template: &[UiNode],
     state: &AppState,
     store: &Arc<AppStore>,
+    engine: &Arc<RiverEngine>,
     rt: &tokio::runtime::Runtime,
     config: &UiThemeConfig,
     time: f64,
@@ -758,7 +808,7 @@ fn render_for_each(
         let child_ctx = data_ctx.with_child(item_ctx.bindings.clone());
 
         render_ui_nodes(
-            ui, template, state, store, rt, config, time, scale, ui_manager, &child_ctx,
+            ui, template, state, store, engine, rt, config, time, scale, ui_manager, &child_ctx,
         );
     }
 }
@@ -778,6 +828,7 @@ fn render_condition(
     else_children: &[UiNode],
     state: &AppState,
     store: &Arc<AppStore>,
+    engine: &Arc<RiverEngine>,
     rt: &tokio::runtime::Runtime,
     config: &UiThemeConfig,
     time: f64,
@@ -799,11 +850,11 @@ fn render_condition(
 
     if condition_met {
         render_ui_nodes(
-            ui, children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+            ui, children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
         );
     } else if !else_children.is_empty() {
         render_ui_nodes(
-            ui, else_children, state, store, rt, config, time, scale, ui_manager, data_ctx,
+            ui, else_children, state, store, engine, rt, config, time, scale, ui_manager, data_ctx,
         );
     }
 }
@@ -819,7 +870,20 @@ fn dispatch_kdl_action(
     ui_manager: &mut UiPluginManager,
     state: &AppState,
 ) {
-    if let Some(cat_str) = action.strip_prefix("SelectCategory:") {
+    if let Some(key) = action.strip_prefix("state:toggle:")
+        .or_else(|| action.strip_prefix("toggle-state:"))
+        .or_else(|| action.strip_prefix("state:toggle(").and_then(|s| s.strip_suffix(')')))
+    {
+        ui_manager.toggle_state(key.trim());
+    } else if let Some(payload) = action.strip_prefix("state:set:")
+        .or_else(|| action.strip_prefix("set-state:"))
+    {
+        if let Some((k, v)) = payload.split_once('=') {
+            ui_manager.set_state(k.trim(), v.trim());
+        }
+    } else if let Some(key) = action.strip_prefix("state:clear:") {
+        ui_manager.set_state(key.trim(), "false");
+    } else if let Some(cat_str) = action.strip_prefix("SelectCategory:") {
         let cat = match cat_str {
             "Video" => MediaCategory::Video,
             "Music" => MediaCategory::Music,
@@ -853,7 +917,7 @@ fn dispatch_kdl_action(
                     rt.spawn(async move {
                         store_clone.dispatch(Intent::AddToLibrary(item_clone)).await;
                     });
-                    return;
+                    break;
                 }
             }
         }
@@ -862,7 +926,15 @@ fn dispatch_kdl_action(
 
 /// Check if an action string represents a currently-active state (for button highlighting).
 fn check_active_state(action: &str, state: &AppState, ui_manager: &UiPluginManager) -> bool {
-    if let Some(cat_str) = action.strip_prefix("SelectCategory:") {
+    if let Some(key) = action.strip_prefix("state:toggle:").or_else(|| action.strip_prefix("toggle-state:")) {
+        ui_manager.get_state(key.trim()).map(|v| v == "true" || v == "1").unwrap_or(false)
+    } else if let Some(payload) = action.strip_prefix("state:set:").or_else(|| action.strip_prefix("set-state:")) {
+        if let Some((k, v)) = payload.split_once('=') {
+            ui_manager.get_state(k.trim()).map(|curr| curr == v.trim()).unwrap_or(false)
+        } else {
+            false
+        }
+    } else if let Some(cat_str) = action.strip_prefix("SelectCategory:") {
         matches!(
             (cat_str, state.selected_category),
             ("Video", MediaCategory::Video)

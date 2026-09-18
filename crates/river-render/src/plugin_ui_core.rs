@@ -118,6 +118,13 @@ pub enum UiNode {
         children: Vec<UiNode>,
         else_children: Vec<UiNode>,
     },
+    /// Dynamic functional invocation node. Invokes an engine or plugin feature
+    /// registered in `RenderFunctionRegistry`.
+    Invoke {
+        function: String,
+        props: HashMap<String, String>,
+        children: Vec<UiNode>,
+    },
 }
 
 impl UiNode {
@@ -129,6 +136,7 @@ impl UiNode {
             UiNode::Grid { effect, .. } => effect,
             UiNode::ForEach { effect, .. } => effect,
             UiNode::Condition { .. } => "none",
+            UiNode::Invoke { .. } => "none",
         }
     }
 
@@ -140,6 +148,7 @@ impl UiNode {
             UiNode::Grid { speed, .. } => *speed,
             UiNode::ForEach { speed, .. } => *speed,
             UiNode::Condition { .. } => 1.0,
+            UiNode::Invoke { .. } => 1.0,
         }
     }
 
@@ -151,6 +160,7 @@ impl UiNode {
             UiNode::Grid { animations, .. } => animations,
             UiNode::ForEach { animations, .. } => animations,
             UiNode::Condition { .. } => &[],
+            UiNode::Invoke { .. } => &[],
         }
     }
 
@@ -199,6 +209,8 @@ pub struct UiThemeConfig {
     pub animation_defs: HashMap<String, AnimationDef>,
     /// Nodes to render on the background layer
     pub background_nodes: Vec<UiNode>,
+    /// Initial local reactive state variables defined by the theme
+    pub initial_state: HashMap<String, String>,
 }
 
 impl UiThemeConfig {
@@ -238,6 +250,7 @@ impl UiThemeConfig {
             layouts: HashMap::new(),
             animation_defs: HashMap::new(),
             background_nodes: Vec::new(),
+            initial_state: HashMap::new(),
         };
 
         for node in doc.nodes() {
@@ -995,6 +1008,35 @@ fn parse_ast_node(node: &KdlNode, default_fill: egui::Color32) -> Option<UiNode>
                 else_children,
             })
         }
+        "invoke" | "mount" => {
+            let mut props = HashMap::new();
+            let mut function = String::new();
+            for entry in node.entries() {
+                if let Some(key) = entry.name() {
+                    let k = key.to_string();
+                    let v = match entry.value().as_string() {
+                        Some(s) => s.to_string(),
+                        None => entry.value().to_string(),
+                    };
+                    if k == "function" || k == "id" || k == "name" {
+                        function = v.clone();
+                    }
+                    props.insert(k, v);
+                } else if let Some(s) = entry.value().as_string() {
+                    if function.is_empty() {
+                        function = s.to_string();
+                    }
+                }
+            }
+            if function.is_empty() {
+                function = text;
+            }
+            Some(UiNode::Invoke {
+                function,
+                props,
+                children,
+            })
+        }
         // Any unknown tag name becomes a generic container — total plugin freedom!
         _ => {
             Some(UiNode::Container { kind: name, id, text, color, style, spacing, padding, children, effect, speed, animations })
@@ -1184,16 +1226,17 @@ impl UiRenderer for DeclarativeUiPlugin {
         ctx: &egui::Context,
         state: &AppState,
         store: &Arc<AppStore>,
+        engine: &Arc<river_engine::RiverEngine>,
         rt: &tokio::runtime::Runtime,
         ui_manager: &mut UiPluginManager,
     ) {
         match self.mode {
             UiExecutionMode::HotplugDynamic => {
-                run_ui_plugin(&self.doc, ctx, state, store, rt, ui_manager);
+                run_ui_plugin(&self.doc, ctx, state, store, engine, rt, ui_manager);
             }
             UiExecutionMode::CoreCompiled => {
                 if let Some(compiled_layout) = &self.compiled {
-                    compiled_layout.render_compiled_window(ctx, state, store, rt, ui_manager);
+                    compiled_layout.render_compiled_window(ctx, state, store, engine, rt, ui_manager);
                 }
             }
         }

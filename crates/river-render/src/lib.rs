@@ -1,9 +1,11 @@
 pub mod android;
 pub mod core_ui;
 pub mod data_exports;
+pub mod function_registry;
 pub mod hotplug_ui;
 pub mod plugin_core;
 pub mod plugin_ui_core;
+pub mod render_functions;
 pub mod ui_animations;
 pub mod ui_backgrounds;
 pub mod ui_plugin;
@@ -104,7 +106,7 @@ impl eframe::App for RiverGuiApp {
 
         // Delegate 100% of window architecture and layout rendering to active KDL theme!
         if let Some(active_plugin) = self.ui_manager.active_plugin() {
-            active_plugin.render_window(ctx, &state, &self.engine.store, &self.rt, &mut self.ui_manager);
+            active_plugin.render_window(ctx, &state, &self.engine.store, &self.engine, &self.rt, &mut self.ui_manager);
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.heading("No active KDL UI plugin loaded!");

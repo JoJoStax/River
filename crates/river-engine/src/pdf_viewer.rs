@@ -4,7 +4,7 @@
 // - **`lopdf`** — 100 % Rust PDF parser; reads cross-reference table, object
 //   graph, page tree, and embedded content streams
 // - **`image`** — decodes embedded JPEG / PNG / JBIG2 images extracted from
-//   page streams
+//   page streams - will try to convert to webp for display, for power efficiency for stupid android tv device.
 // - **`reqwest`** — PDF file fetching (with `rustls-tls`)
 //
 // # Scope

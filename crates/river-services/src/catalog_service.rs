@@ -16,7 +16,7 @@ impl CatalogService {
         Self { plugin_service }
     }
 }
-
+// made categories less hard coded allowing plugins to add new catagories and have them show up in the catalog service
 #[async_trait]
 impl CatalogPort for CatalogService {
     async fn get_catalogs(&self, category: MediaCategory) -> Result<Vec<Catalog>> {

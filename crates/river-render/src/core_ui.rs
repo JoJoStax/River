@@ -31,9 +31,10 @@ impl CompiledUiLayout {
         ctx: &egui::Context,
         state: &AppState,
         store: &Arc<AppStore>,
+        engine: &Arc<river_engine::RiverEngine>,
         rt: &tokio::runtime::Runtime,
         ui_manager: &mut UiPluginManager,
     ) {
-        render_theme_layout(&self.config, ctx, state, store, rt, ui_manager);
+        render_theme_layout(&self.config, ctx, state, store, engine, rt, ui_manager);
     }
 }

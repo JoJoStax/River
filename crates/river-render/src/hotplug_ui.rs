@@ -15,9 +15,10 @@ pub fn run_ui_plugin(
     ctx: &egui::Context,
     state: &AppState,
     store: &Arc<AppStore>,
+    engine: &Arc<river_engine::RiverEngine>,
     rt: &tokio::runtime::Runtime,
     ui_manager: &mut UiPluginManager,
 ) {
     let config = UiThemeConfig::from_kdl(doc);
-    render_theme_layout(&config, ctx, state, store, rt, ui_manager);
+    render_theme_layout(&config, ctx, state, store, engine, rt, ui_manager);
 }

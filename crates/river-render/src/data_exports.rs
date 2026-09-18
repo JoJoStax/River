@@ -9,7 +9,6 @@
 
 use crate::plugin_ui_core::UiThemeConfig;
 use crate::ui_plugin::UiPluginManager;
-use river_core::MediaCategory;
 use river_presentation::{AppState, CatalogState};
 use std::collections::HashMap;
 
@@ -179,23 +178,71 @@ pub fn build_data_context(
 ) -> DataContext {
     let mut bindings = HashMap::new();
 
-    // ── Categories ──────────────────────────────────────────────────────
-    let all_categories = [
-        (MediaCategory::Video, "Video", "🎬"),
-        (MediaCategory::Music, "Music", "🎵"),
-        (MediaCategory::Manga, "Manga", "📖"),
-        (MediaCategory::Podcast, "Podcasts", "🎙️"),
-    ];
+    // ── Local Theme State ───────────────────────────────────────────────
+    for (k, v) in &ui_manager.local_state {
+        bindings.insert(format!("state.{}", k), DataValue::Str(v.clone()));
+        bindings.insert(format!("local.{}", k), DataValue::Str(v.clone()));
+        bindings.insert(k.clone(), DataValue::Str(v.clone()));
+    }
 
-    let category_contexts: Vec<DataContext> = all_categories
+    // ── Dynamic Categories (Created by Plugins & Catalogs) ───────────────
+    struct DynamicCategoryItem {
+        id: String,
+        name: String,
+        icon: String,
+        is_active: bool,
+    }
+
+    let mut dynamic_categories: Vec<DynamicCategoryItem> = Vec::new();
+
+    // 1. From loaded plugin catalogs (e.g. Anime, Movies, etc.)
+    if let CatalogState::Loaded(catalogs) = &state.catalog_state {
+        for catalog in catalogs {
+            if !catalog.name.is_empty() && !dynamic_categories.iter().any(|c| c.name == catalog.name) {
+                let is_active = state.selected_category == catalog.category;
+                dynamic_categories.push(DynamicCategoryItem {
+                    id: catalog.id.clone(),
+                    name: catalog.name.clone(),
+                    icon: String::new(),
+                    is_active,
+                });
+            }
+        }
+    }
+
+    // 2. From installed plugins
+    for plugin in &state.plugins {
+        if !dynamic_categories.iter().any(|c| c.id == plugin.id.0 || c.name == plugin.name) {
+            let is_active = plugin.supported_categories.contains(&state.selected_category);
+            dynamic_categories.push(DynamicCategoryItem {
+                id: plugin.id.0.clone(),
+                name: plugin.name.clone(),
+                icon: plugin.icon_url.clone().unwrap_or_default(),
+                is_active,
+            });
+        }
+    }
+
+    // 3. Fallback to active selection if no plugins/catalogs populated yet
+    if dynamic_categories.is_empty() {
+        let cat = state.selected_category;
+        let name = format!("{}", cat);
+        dynamic_categories.push(DynamicCategoryItem {
+            id: name.clone(),
+            name,
+            icon: String::new(),
+            is_active: true,
+        });
+    }
+
+    let category_contexts: Vec<DataContext> = dynamic_categories
         .iter()
-        .map(|(cat, name, icon)| {
-            let is_active = state.selected_category == *cat;
+        .map(|item| {
             let mut cb = HashMap::new();
-            cb.insert("cat.id".to_string(), DataValue::Str(name.to_string()));
-            cb.insert("cat.name".to_string(), DataValue::Str(name.to_string()));
-            cb.insert("cat.icon".to_string(), DataValue::Str(icon.to_string()));
-            cb.insert("cat.active".to_string(), DataValue::Bool(is_active));
+            cb.insert("cat.id".to_string(), DataValue::Str(item.id.clone()));
+            cb.insert("cat.name".to_string(), DataValue::Str(item.name.clone()));
+            cb.insert("cat.icon".to_string(), DataValue::Str(item.icon.clone()));
+            cb.insert("cat.active".to_string(), DataValue::Bool(item.is_active));
             DataContext { bindings: cb }
         })
         .collect();
@@ -203,15 +250,10 @@ pub fn build_data_context(
     bindings.insert("categories".to_string(), DataValue::List(category_contexts));
 
     // ── Active Category ─────────────────────────────────────────────────
-    let active_cat_str = match state.selected_category {
-        MediaCategory::Video => "Video",
-        MediaCategory::Music => "Music",
-        MediaCategory::Manga => "Manga",
-        MediaCategory::Podcast => "Podcasts",
-    };
+    let active_cat_str = format!("{}", state.selected_category);
     bindings.insert(
         "active_category".to_string(),
-        DataValue::Str(active_cat_str.to_string()),
+        DataValue::Str(active_cat_str),
     );
 
     // ── Catalog State ───────────────────────────────────────────────────

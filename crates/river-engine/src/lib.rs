@@ -28,6 +28,12 @@ use std::sync::Arc;
 
 pub struct RiverEngine {
     pub store: Arc<AppStore>,
+    pub music_player: Arc<PlayerHandle<MusicCmd, MusicState>>,
+    pub comic_viewer: Arc<PlayerHandle<ComicCmd, ComicState>>,
+    pub comic_page_rx: tokio::sync::watch::Receiver<Option<Arc<Vec<u8>>>>,
+    pub pdf_viewer: Arc<PlayerHandle<PdfCmd, PdfState>>,
+    pub pdf_page_rx: tokio::sync::watch::Receiver<Option<Arc<PdfPageData>>>,
+    pub video_player: Arc<std::sync::Mutex<(PlayerHandle<VideoCmd, VideoState>, tokio::sync::watch::Receiver<Option<Arc<VideoFrame>>>)>>,
 }
 
 impl RiverEngine {
@@ -47,7 +53,20 @@ impl RiverEngine {
             plugin_service,
         ));
 
-        Ok(Self { store })
+        let music_player = Arc::new(MusicPlayer::spawn());
+        let (comic_viewer, comic_page_rx) = ComicViewer::spawn();
+        let (pdf_viewer, pdf_page_rx) = PdfViewer::spawn();
+        let (video_handle, video_frame_rx) = VideoPlayer::spawn(Box::new(NullVideoDecoder));
+
+        Ok(Self {
+            store,
+            music_player,
+            comic_viewer: Arc::new(comic_viewer),
+            comic_page_rx,
+            pdf_viewer: Arc::new(pdf_viewer),
+            pdf_page_rx,
+            video_player: Arc::new(std::sync::Mutex::new((video_handle, video_frame_rx))),
+        })
     }
 
     pub async fn new_with_db_path(path: &str) -> Result<Self> {
@@ -66,6 +85,19 @@ impl RiverEngine {
             plugin_service,
         ));
 
-        Ok(Self { store })
+        let music_player = Arc::new(MusicPlayer::spawn());
+        let (comic_viewer, comic_page_rx) = ComicViewer::spawn();
+        let (pdf_viewer, pdf_page_rx) = PdfViewer::spawn();
+        let (video_handle, video_frame_rx) = VideoPlayer::spawn(Box::new(NullVideoDecoder));
+
+        Ok(Self {
+            store,
+            music_player,
+            comic_viewer: Arc::new(comic_viewer),
+            comic_page_rx,
+            pdf_viewer: Arc::new(pdf_viewer),
+            pdf_page_rx,
+            video_player: Arc::new(std::sync::Mutex::new((video_handle, video_frame_rx))),
+        })
     }
 }
